@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#07111d" />
+  <title>Sail Shots · RC44</title>
+  <link rel="stylesheet" href="../styles.css?v=20260921" />
+</head>
+<body>
+  <div class="bg-glow bg-glow--one"></div>
+  <div class="bg-glow bg-glow--two"></div>
+
+  <main class="site-shell">
+    <header class="topbar">
+      <a class="brand" href="../" aria-label="Back to RC44 Lab">
+        <img src="../assets/seagull-lab-logo.png" alt="Seagull Lab" />
+        <span class="brand__divider"></span>
+        <span class="brand__label">RC44</span>
+      </a>
+      <div class="title-block"><span>Artemis &amp; Gemera</span><strong>Sail Shots</strong></div>
+      <div class="header-actions">
+        <button id="addScanBtn" class="ghost-button" type="button">Add scan</button>
+        <button id="discardChangesBtn" class="ghost-button" type="button">Discard local changes</button>
+        <button id="downloadDataBtn" class="ghost-button" type="button">Download data.js</button>
+        <a class="ghost-button" href="../">Home</a>
+      </div>
+    </header>
+
+    <div class="page">
+      <div class="section-kicker">Debrief</div>
+      <h1>Sail shots</h1>
+      <p class="intro">
+        Filter historical sail scans and compare Artemis against Gemera side by side. Edits and new
+        scans save to this browser — use <strong>Download data.js</strong> to publish (replace
+        <code>sail-shots/data.js</code> in the repo, and add any new photo files under
+        <code>sail-shots/photos/</code>).
+      </p>
+
+      <div id="changesBar" class="panel is-hidden" style="margin-bottom:24px;">
+        <span style="color:var(--muted-2); font-size:.86rem;">You have unpublished changes, saved in this browser only.</span>
+      </div>
+
+      <section class="panel" style="margin-bottom:32px;">
+        <div class="section-kicker">Filter</div>
+        <div class="filter-bar">
+          <label class="field-inline"><span>TWS min</span><input id="fTwsMin" type="number" step="0.5" placeholder="kn"></label>
+          <label class="field-inline"><span>TWS max</span><input id="fTwsMax" type="number" step="0.5" placeholder="kn"></label>
+          <label class="field-inline"><span>BSP min</span><input id="fBspMin" type="number" step="0.5" placeholder="kn"></label>
+          <label class="field-inline"><span>BSP max</span><input id="fBspMax" type="number" step="0.5" placeholder="kn"></label>
+          <label class="field-inline"><span>Max camber min</span><input id="fCamMin" type="number" step="0.5" placeholder="%"></label>
+          <label class="field-inline"><span>Max camber max</span><input id="fCamMax" type="number" step="0.5" placeholder="%"></label>
+          <button id="resetFiltersBtn" class="ghost-button" type="button">Reset</button>
+        </div>
+      </section>
+
+      <section class="split-view" style="margin-bottom:32px;">
+        <div class="panel">
+          <div class="split-col__head"><span class="boat-dot boat-dot--artemis"></span><h2>Artemis</h2></div>
+          <select id="select-artemis" class="scan-select"></select>
+          <div id="stage-artemis" class="scan-stage"></div>
+          <div id="data-artemis"></div>
+        </div>
+        <div class="panel">
+          <div class="split-col__head"><span class="boat-dot boat-dot--gemera"></span><h2>Gemera</h2></div>
+          <select id="select-gemera" class="scan-select"></select>
+          <div id="stage-gemera" class="scan-stage"></div>
+          <div id="data-gemera"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 style="margin-top:0;">Overlay</h2>
+        <p class="import-step__hint">Gemera underneath, Artemis on top — slide to compare shapes.</p>
+        <div class="overlay-toggle">
+          <span>Artemis opacity</span>
+          <input id="overlayOpacity" type="range" min="0" max="100" value="50" style="flex:1;">
+        </div>
+        <div id="overlayStage" class="scan-stage" style="position:relative; min-height:320px;"></div>
+      </section>
+    </div>
+  </main>
+
+  <div id="addScanDialog" class="dialog is-hidden">
+    <div class="dialog__backdrop"></div>
+    <div class="dialog__panel" style="width:min(680px,100%);">
+      <div class="dialog__head">
+        <h2>Add scan</h2>
+        <button id="addScanClose" class="text-link" type="button">Close</button>
+      </div>
+      <form id="addScanForm">
+        <div class="manage-add-grid">
+          <label class="field-inline"><span>Boat</span>
+            <select id="addBoat"><option value="artemis">Artemis</option><option value="gemera">Gemera</option></select>
+          </label>
+          <label class="field-inline"><span>Time</span><input id="addTime" type="datetime-local" required></label>
+          <label class="field-inline"><span>Batten label</span><input id="addBatten" type="text" placeholder="e.g. Mn2 RedBattens 26mm Chock — STBD"></label>
+          <label class="field-inline"><span>TWS (kn)</span><input id="addTws" type="number" step="0.1"></label>
+          <label class="field-inline"><span>TWA (°)</span><input id="addTwa" type="number" step="1"></label>
+          <label class="field-inline"><span>BSP (kn)</span><input id="addBsp" type="number" step="0.1"></label>
+          <label class="field-inline"><span>Forestay</span><input id="addForestay" type="number" step="0.1"></label>
+          <label class="field-inline"><span>Rake</span><input id="addRake" type="number" step="0.01"></label>
+          <label class="field-inline"><span>Trim tab</span><input id="addTrimtab" type="number" step="1"></label>
+        </div>
+
+        <label class="file-drop" style="margin:8px 0 18px;">
+          <input id="addPhotoInput" type="file" accept="image/*" required>
+          <span>Choose photo…</span>
+        </label>
+
+        <div class="section-kicker">Camber table (optional)</div>
+        <table class="compare-table" style="margin-top:8px;">
+          <thead><tr><th>Height</th><th>Camber</th><th>Draft</th><th>Twist</th><th>Entry</th><th>Exit</th><th>Fore cam</th><th>Back cam</th></tr></thead>
+          <tbody id="camberRows">
+            <tr><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td></tr>
+            <tr><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td></tr>
+            <tr><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td></tr>
+            <tr><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td><td><input type="number" step="any"></td></tr>
+          </tbody>
+        </table>
+
+        <button type="submit" class="ghost-button" style="margin-top:20px;">Save scan</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="./data.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

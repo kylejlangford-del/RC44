@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#07111d" />
+  <title>Main Battens · RC44</title>
+  <link rel="stylesheet" href="../styles.css?v=20260921" />
+</head>
+<body>
+  <div class="bg-glow bg-glow--one"></div>
+  <div class="bg-glow bg-glow--two"></div>
+
+  <main class="site-shell">
+    <header class="topbar">
+      <a class="brand" href="../" aria-label="Back to RC44 Lab">
+        <img src="../assets/seagull-lab-logo.png" alt="Seagull Lab" />
+        <span class="brand__divider"></span>
+        <span class="brand__label">RC44</span>
+      </a>
+      <div class="title-block"><span>Artemis &amp; Gemera</span><strong>Main Battens</strong></div>
+      <div class="header-actions">
+        <button id="discardChangesBtn" class="ghost-button" type="button">Discard local changes</button>
+        <button id="downloadDataBtn" class="ghost-button" type="button">Download data.js</button>
+        <a class="ghost-button" href="../">Home</a>
+      </div>
+    </header>
+
+    <div class="page">
+      <div class="section-kicker">Inventory</div>
+      <h1>Main battens</h1>
+      <p class="intro">
+        Select which of the 6 mainsail battens is installed on each boat and compare Artemis vs Gemera by
+        name and EI (stiffness) side by side. Edits save to this browser automatically — use
+        <strong>Download data.js</strong> to publish them (replace <code>main-battens/data.js</code> in the repo).
+      </p>
+
+      <div id="changesBar" class="panel is-hidden" style="margin-bottom:24px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
+        <span style="color:var(--muted-2); font-size:.86rem;">You have unpublished changes, saved in this browser only.</span>
+      </div>
+
+      <section class="boat-columns" style="margin-bottom:40px;">
+        <div class="panel">
+          <div class="boat-col__head">
+            <span class="boat-dot boat-dot--artemis"></span>
+            <h2>Artemis</h2>
+          </div>
+          <div id="col-artemis"></div>
+        </div>
+        <div class="panel">
+          <div class="boat-col__head">
+            <span class="boat-dot boat-dot--gemera"></span>
+            <h2>Gemera</h2>
+          </div>
+          <div id="col-gemera"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 style="margin-top:0;">Side-by-side comparison</h2>
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>Batten</th>
+              <th>Artemis</th>
+              <th>EI</th>
+              <th>Gemera</th>
+              <th>EI</th>
+              <th>EI delta</th>
+            </tr>
+          </thead>
+          <tbody id="compareBody"></tbody>
+        </table>
+      </section>
+    </div>
+  </main>
+
+  <div id="manageDialog" class="dialog is-hidden">
+    <div class="dialog__backdrop"></div>
+    <div class="dialog__panel">
+      <div class="dialog__head">
+        <h2 id="manageTitle">Manage inventory</h2>
+        <button id="manageClose" class="text-link" type="button">Close</button>
+      </div>
+      <div id="manageList" class="manage-list"></div>
+      <form id="manageAddForm" class="manage-add-form">
+        <div class="section-kicker">Add batten to this slot</div>
+        <div class="manage-add-grid">
+          <label class="field-inline"><span>Name</span><input id="newBattenName" type="text" required placeholder="e.g. MN1 Stiff red" /></label>
+          <label class="field-inline"><span>EI (stiffness)</span><input id="newBattenEi" type="number" step="any" placeholder="e.g. 230" /></label>
+          <label class="field-inline"><span>Serial</span><input id="newBattenSerial" type="text" placeholder="optional" /></label>
+          <label class="field-inline"><span>Notes</span><input id="newBattenNotes" type="text" placeholder="optional" /></label>
+        </div>
+        <button type="submit" class="ghost-button">Add to inventory</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="./data.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
