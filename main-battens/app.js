@@ -304,6 +304,17 @@ import {
     return (ei === null || ei === undefined || ei === "") ? "EI —" : "EI " + ei;
   }
 
+  function sortByEi(list) {
+    return list.slice().sort(function (a, b) {
+      var ae = (a.ei === null || a.ei === undefined || a.ei === "") ? null : Number(a.ei);
+      var be = (b.ei === null || b.ei === undefined || b.ei === "") ? null : Number(b.ei);
+      if (ae === null && be === null) return 0;
+      if (ae === null) return 1;
+      if (be === null) return -1;
+      return ae - be;
+    });
+  }
+
   function battenOptionLabel(b) {
     var parts = [b.name, eiLabel(b.ei)];
     if (b.serial) parts.push("#" + b.serial);
@@ -356,7 +367,7 @@ import {
         noneOpt.textContent = "— none selected —";
         select.appendChild(noneOpt);
 
-        slot.battens.forEach(function (b) {
+        sortByEi(slot.battens).forEach(function (b) {
           if (b.decommissioned) return;
           var opt = document.createElement("option");
           opt.value = b.id;
@@ -553,7 +564,7 @@ import {
           block.appendChild(empty);
         }
 
-        slot.battens.forEach(function (b) {
+        sortByEi(slot.battens).forEach(function (b) {
           block.appendChild(buildBattenRow(boat, pos, b));
         });
 
@@ -742,13 +753,13 @@ import {
 
     var rangeEl = document.createElement("div");
     rangeEl.className = "xover-range";
+    trackEl.appendChild(rangeEl);
     var leftHandle = document.createElement("div");
     leftHandle.className = "xover-handle xover-handle--left";
     var rightHandle = document.createElement("div");
     rightHandle.className = "xover-handle xover-handle--right";
-    rangeEl.appendChild(leftHandle);
-    rangeEl.appendChild(rightHandle);
-    trackEl.appendChild(rangeEl);
+    trackEl.appendChild(leftHandle);
+    trackEl.appendChild(rightHandle);
 
     var cur = { min: range.min, max: range.max };
 
@@ -760,6 +771,8 @@ import {
       rangeEl.style.left = l + "%";
       rangeEl.style.width = Math.max(0.5, r - l) + "%";
       rangeEl.textContent = cur.min + "–" + cur.max + "kt";
+      leftHandle.style.left = l + "%";
+      rightHandle.style.left = r + "%";
     }
     paint();
 
@@ -856,7 +869,7 @@ import {
     container.appendChild(chart);
 
     var rows = kind === "battens"
-      ? slotsFor(boat)[pos].battens.filter(function (b) { return !b.decommissioned; }).map(function (b) {
+      ? sortByEi(slotsFor(boat)[pos].battens.filter(function (b) { return !b.decommissioned; })).map(function (b) {
           return { id: b.id, label: b.name, sub: eiLabel(b.ei), removable: false };
         })
       : slot.chocks.defs.map(function (c) { return { id: c.id, label: c.name, sub: "", removable: true }; });
@@ -943,7 +956,7 @@ import {
       list.appendChild(empty);
       return;
     }
-    slot.battens.forEach(function (b) {
+    sortByEi(slot.battens).forEach(function (b) {
       list.appendChild(buildBattenRow(boat, pos, b));
     });
   }
