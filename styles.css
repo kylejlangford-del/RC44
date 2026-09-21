@@ -1326,3 +1326,228 @@ select:focus, input:focus, textarea:focus {
   .inv-position { margin-bottom: 14px; }
   .inv-row { padding: 8px 10px; margin-bottom: 6px; }
 }
+
+/* ---- TWS suggestion (Main Battens comparison view) ---- */
+
+.suggest-tws {
+  margin: 4px 0 2px;
+  max-width: 260px;
+}
+
+.suggest-tws input {
+  width: 100%;
+}
+
+.compare-row__suggest {
+  flex: 1 1 100%;
+  font-size: .78rem;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: -2px;
+}
+
+.compare-row__suggest button {
+  font: inherit;
+  font-size: .74rem;
+  border: 1px solid var(--line);
+  background: rgba(71,231,219,.06);
+  color: var(--accent-2);
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.compare-row__suggest button:hover { border-color: var(--line-strong); }
+
+/* ---- Crossover (wind-range charts) ---- */
+
+.xover-subtabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  margin: 12px 0;
+}
+
+.xover-subtab__btn {
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--muted-2);
+  cursor: pointer;
+}
+
+.xover-subtab__btn.is-active {
+  background: var(--accent);
+  color: #04211f;
+}
+
+.pos-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.pos-toggle__btn {
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+  padding: 6px 13px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.02);
+  color: var(--muted-2);
+  cursor: pointer;
+}
+
+.pos-toggle__btn.is-active {
+  border-color: var(--accent);
+  color: var(--accent-2);
+  background: rgba(71,231,219,.08);
+}
+
+.xover-ruler {
+  position: relative;
+  height: 20px;
+  margin: 0 0 6px;
+  font-size: .68rem;
+  color: var(--muted);
+}
+
+.xover-ruler__tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.xover-chart { margin-bottom: 6px; }
+
+.xover-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.xover-row__label {
+  flex: 0 0 132px;
+  width: 132px;
+  font-size: .78rem;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
+.xover-row__label .xover-row__ei {
+  display: block;
+  color: var(--accent-2);
+  font-size: .7rem;
+}
+
+.xover-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 30px;
+  border-radius: 9px;
+  background: rgba(255,255,255,.035);
+  border: 1px dashed rgba(115,135,160,.22);
+  touch-action: none;
+}
+
+.xover-track__grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.xover-track__gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(115,135,160,.12);
+}
+
+.xover-range {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 7px;
+  background: linear-gradient(160deg, rgba(71,231,219,.32), rgba(71,231,219,.16));
+  border: 1px solid rgba(71,231,219,.55);
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .68rem;
+  color: #d8fff8;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 0 4px;
+}
+
+.xover-range:active { cursor: grabbing; }
+
+.xover-handle {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 16px;
+  cursor: ew-resize;
+}
+
+.xover-handle--left { left: -8px; }
+.xover-handle--right { right: -8px; }
+
+.xover-handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.xover-empty-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .68rem;
+  color: rgba(152,168,186,.45);
+  pointer-events: none;
+}
+
+.xover-row__remove {
+  flex: 0 0 auto;
+  font-size: .72rem;
+}
+
+.add-chock-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.add-chock-form input {
+  flex: 1 1 auto;
+}
+
+@media (max-width: 640px) {
+  .xover-row { flex-wrap: wrap; gap: 4px; }
+  .xover-row__label { flex-basis: 100%; width: auto; }
+  .xover-track { flex-basis: 100%; }
+}
