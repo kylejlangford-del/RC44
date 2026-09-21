@@ -496,6 +496,8 @@ select:focus, input:focus, textarea:focus {
   gap: 24px;
 }
 
+.boat-columns--battens { margin-bottom: 40px; }
+
 @media (max-width: 900px) {
   .boat-columns { grid-template-columns: 1fr; }
 }
@@ -1273,3 +1275,25 @@ select:focus, input:focus, textarea:focus {
 }
 
 .inv-edit-actions { flex: 1 1 100%; display: flex; gap: 10px; margin-top: 4px; }
+
+/* ---- Tighten vertical rhythm on phones: the desktop paddings below leave a lot of
+   blank space when each row is this short, so shrink them under 640px. ---- */
+@media (max-width: 640px) {
+  .page { padding: 24px 0 48px; }
+  .page .intro { margin-bottom: 22px; }
+  .panel { padding: 16px; border-radius: 16px; }
+  .boat-columns { gap: 14px; }
+  .boat-columns--battens { margin-bottom: 22px; }
+  .boat-col__head { margin-bottom: 10px; }
+
+  .batten-slot { padding: 8px 6px; gap: 8px; }
+  .batten-slot__manage { margin: -2px 0 8px 40px; }
+
+  .view-toggle { margin-bottom: 14px; }
+
+  .compare-list { margin-top: 8px; }
+  .compare-row { padding: 10px 2px; gap: 6px 14px; }
+
+  .inv-position { margin-bottom: 14px; }
+  .inv-row { padding: 8px 10px; margin-bottom: 6px; }
+}
