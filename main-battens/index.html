@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#07111d" />
   <title>Main Battens · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20260921h" />
+  <link rel="stylesheet" href="../styles.css?v=20260922a" />
 </head>
 <body>
   <div class="bg-glow bg-glow--one"></div>
@@ -47,6 +47,7 @@
       <div class="view-toggle" role="tablist">
         <button class="view-toggle__btn is-active" type="button" data-view="comparison">Comparison</button>
         <button class="view-toggle__btn" type="button" data-view="inventory">Full inventory</button>
+        <button class="view-toggle__btn" type="button" data-view="crossover">Crossover</button>
       </div>
 
       <div id="viewComparison">
@@ -82,6 +83,11 @@
         <section class="panel">
           <h2 style="margin-top:0;">Side-by-side comparison</h2>
           <p class="import-step__hint" id="compareSailNote">Green = softer, red = stiffer. Colour intensity is relative to the biggest EI gap among the 6 positions right now.</p>
+          <label class="field-inline suggest-tws">
+            <span>Suggest battens for TWS (kts)</span>
+            <input id="suggestTws" type="number" min="4" max="25" step="0.5" placeholder="e.g. 14" />
+          </label>
+          <p class="import-step__hint is-hidden" id="suggestHint">Based on the wind ranges you've set on the Crossover tab. Tap a suggestion to select it.</p>
           <div id="compareList" class="compare-list"></div>
         </section>
       </div>
@@ -109,6 +115,45 @@
               <button class="ghost-button" type="button" data-add-batten="gemera" style="font-size:.78rem; padding:7px 14px;">+ Add batten</button>
             </div>
             <div id="inv-gemera"></div>
+          </div>
+        </section>
+      </div>
+
+      <div id="viewCrossover" class="is-hidden">
+        <p class="import-step__hint" style="margin-bottom:20px;">
+          Pick a position, then drag each batten's bar to set the true wind speed range it's used for
+          (4&ndash;25kts). Switch to Chocks for the same thing with your chock choices.
+        </p>
+        <section class="boat-columns">
+          <div class="panel">
+            <div class="boat-col__head" style="justify-content:space-between;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span class="boat-dot boat-dot--artemis"></span>
+                <h2>Artemis</h2>
+                <div class="sail-toggle" data-sail-toggle="artemis"></div>
+              </div>
+            </div>
+            <div class="xover-subtabs" data-xover-subtabs="artemis">
+              <button type="button" class="xover-subtab__btn is-active" data-xover-kind="battens">Battens</button>
+              <button type="button" class="xover-subtab__btn" data-xover-kind="chocks">Chocks</button>
+            </div>
+            <div class="pos-toggle" data-xover-pos="artemis"></div>
+            <div id="xover-artemis"></div>
+          </div>
+          <div class="panel">
+            <div class="boat-col__head" style="justify-content:space-between;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span class="boat-dot boat-dot--gemera"></span>
+                <h2>Gemera</h2>
+                <div class="sail-toggle" data-sail-toggle="gemera"></div>
+              </div>
+            </div>
+            <div class="xover-subtabs" data-xover-subtabs="gemera">
+              <button type="button" class="xover-subtab__btn is-active" data-xover-kind="battens">Battens</button>
+              <button type="button" class="xover-subtab__btn" data-xover-kind="chocks">Chocks</button>
+            </div>
+            <div class="pos-toggle" data-xover-pos="gemera"></div>
+            <div id="xover-gemera"></div>
           </div>
         </section>
       </div>
@@ -149,8 +194,8 @@
     </div>
   </div>
 
-  <script src="./data.js?v=20260921h"></script>
+  <script src="./data.js?v=20260922a"></script>
   <script src="./firebase-config.js"></script>
-  <script type="module" src="./app.js?v=20260921h"></script>
+  <script type="module" src="./app.js?v=20260922a"></script>
 </body>
 </html>
