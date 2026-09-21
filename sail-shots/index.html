@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#07111d" />
   <title>Sail Shots · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20260921" />
+  <link rel="stylesheet" href="../styles.css?v=20260921c" />
 </head>
 <body>
   <div class="bg-glow bg-glow--one"></div>
@@ -44,39 +44,50 @@
       <section class="panel" style="margin-bottom:32px;">
         <div class="section-kicker">Filter</div>
         <div class="filter-bar">
-          <label class="field-inline"><span>TWS min</span><input id="fTwsMin" type="number" step="0.5" placeholder="kn"></label>
-          <label class="field-inline"><span>TWS max</span><input id="fTwsMax" type="number" step="0.5" placeholder="kn"></label>
-          <label class="field-inline"><span>BSP min</span><input id="fBspMin" type="number" step="0.5" placeholder="kn"></label>
-          <label class="field-inline"><span>BSP max</span><input id="fBspMax" type="number" step="0.5" placeholder="kn"></label>
-          <label class="field-inline"><span>Max camber min</span><input id="fCamMin" type="number" step="0.5" placeholder="%"></label>
-          <label class="field-inline"><span>Max camber max</span><input id="fCamMax" type="number" step="0.5" placeholder="%"></label>
+          <label class="field-inline"><span>Event</span><select id="fEvent"></select></label>
+          <label class="field-inline"><span>Date</span><select id="fDate"></select></label>
+          <label class="field-inline"><span>Boat speed</span><select id="fBsp"></select></label>
+          <label class="field-inline"><span>Chock size</span><select id="fChock"></select></label>
+          <label class="field-inline"><span>Mast setup</span><select id="fMastSetup"></select></label>
+          <label class="field-inline"><span>Trim tab</span><select id="fTrimtab"></select></label>
+          <label class="field-inline"><span>Rake</span><select id="fRake"></select></label>
           <button id="resetFiltersBtn" class="ghost-button" type="button">Reset</button>
+        </div>
+        <div class="field-inline" style="margin-top:18px; max-width:420px;">
+          <span>TWS range — <span id="fTwsLabel"></span></span>
+          <div class="dual-slider">
+            <input id="fTwsLo" type="range" min="0" max="30" step="0.5" value="0">
+            <input id="fTwsHi" type="range" min="0" max="30" step="0.5" value="30">
+          </div>
         </div>
       </section>
 
       <section class="split-view" style="margin-bottom:32px;">
         <div class="panel">
           <div class="split-col__head"><span class="boat-dot boat-dot--artemis"></span><h2>Artemis</h2></div>
-          <select id="select-artemis" class="scan-select"></select>
+          <div id="catalog-artemis" class="thumb-grid"></div>
           <div id="stage-artemis" class="scan-stage"></div>
+          <button id="calBtn-artemis" class="text-link is-hidden" type="button" style="margin-top:10px;">Set / edit mast alignment</button>
           <div id="data-artemis"></div>
         </div>
         <div class="panel">
           <div class="split-col__head"><span class="boat-dot boat-dot--gemera"></span><h2>Gemera</h2></div>
-          <select id="select-gemera" class="scan-select"></select>
+          <div id="catalog-gemera" class="thumb-grid"></div>
           <div id="stage-gemera" class="scan-stage"></div>
+          <button id="calBtn-gemera" class="text-link is-hidden" type="button" style="margin-top:10px;">Set / edit mast alignment</button>
           <div id="data-gemera"></div>
         </div>
       </section>
 
       <section class="panel">
         <h2 style="margin-top:0;">Overlay</h2>
-        <p class="import-step__hint">Gemera underneath, Artemis on top — slide to compare shapes.</p>
+        <p class="import-step__hint">Gemera underneath, Artemis on top, aligned and scaled on the mast when both scans are calibrated.</p>
+        <div id="overlayNote" class="pill" style="display:inline-flex; margin:10px 0;"></div>
         <div class="overlay-toggle">
           <span>Artemis opacity</span>
           <input id="overlayOpacity" type="range" min="0" max="100" value="50" style="flex:1;">
         </div>
-        <div id="overlayStage" class="scan-stage" style="position:relative; min-height:320px;"></div>
+        <div id="overlayStage" class="scan-stage" style="position:relative; min-height:320px; overflow:hidden;"></div>
       </section>
     </div>
   </main>
@@ -93,20 +104,32 @@
           <label class="field-inline"><span>Boat</span>
             <select id="addBoat"><option value="artemis">Artemis</option><option value="gemera">Gemera</option></select>
           </label>
+          <label class="field-inline"><span>Event</span><input id="addEvent" type="text" placeholder="e.g. Mastrand 26"></label>
           <label class="field-inline"><span>Time</span><input id="addTime" type="datetime-local" required></label>
-          <label class="field-inline"><span>Batten label</span><input id="addBatten" type="text" placeholder="e.g. Mn2 RedBattens 26mm Chock — STBD"></label>
+          <label class="field-inline"><span>Tack</span>
+            <select id="addTack"><option value="">—</option><option value="STBD">STBD</option><option value="PORT">PORT</option></select>
+          </label>
+          <label class="field-inline"><span>Batten label</span><input id="addBatten" type="text" placeholder="e.g. Mn2 RedBattens"></label>
+          <label class="field-inline"><span>Chock size</span><input id="addChock" type="text" placeholder="e.g. 26mm"></label>
           <label class="field-inline"><span>TWS (kn)</span><input id="addTws" type="number" step="0.1"></label>
           <label class="field-inline"><span>TWA (°)</span><input id="addTwa" type="number" step="1"></label>
           <label class="field-inline"><span>BSP (kn)</span><input id="addBsp" type="number" step="0.1"></label>
           <label class="field-inline"><span>Forestay</span><input id="addForestay" type="number" step="0.1"></label>
           <label class="field-inline"><span>Rake</span><input id="addRake" type="number" step="0.01"></label>
           <label class="field-inline"><span>Trim tab</span><input id="addTrimtab" type="number" step="1"></label>
+          <label class="field-inline"><span>Mast setup</span><input id="addMastSetup" type="number" step="0.1"></label>
+          <label class="field-inline"><span>Main sheet mark</span><input id="addMainSheetMark" type="number" step="0.01"></label>
         </div>
 
-        <label class="file-drop" style="margin:8px 0 18px;">
+        <label class="file-drop" style="margin:8px 0 12px;">
           <input id="addPhotoInput" type="file" accept="image/*" required>
           <span>Choose photo…</span>
         </label>
+
+        <div style="display:flex; align-items:center; gap:14px; margin-bottom:18px;">
+          <button id="addMastBtn" class="ghost-button" type="button" disabled>Set mast alignment</button>
+          <span style="font-size:.82rem; color:var(--muted);">Mast alignment: <strong id="addMastStatus">Not set</strong> (optional — needed for an accurate overlay)</span>
+        </div>
 
         <div class="section-kicker">Camber table (optional)</div>
         <table class="compare-table" style="margin-top:8px;">
@@ -121,6 +144,22 @@
 
         <button type="submit" class="ghost-button" style="margin-top:20px;">Save scan</button>
       </form>
+    </div>
+  </div>
+
+  <div id="calDialog" class="dialog is-hidden">
+    <div class="dialog__backdrop"></div>
+    <div class="dialog__panel" style="width:min(760px,100%);">
+      <div class="dialog__head">
+        <h2>Mast alignment</h2>
+        <button id="calClose" class="text-link" type="button">Close</button>
+      </div>
+      <p id="calHint" class="import-step__hint" style="margin-bottom:12px;"></p>
+      <div id="calStage" class="cal-stage"></div>
+      <div style="display:flex; gap:14px; margin-top:16px;">
+        <button id="calClearBtn" class="ghost-button" type="button">Clear</button>
+        <button id="calSaveBtn" class="ghost-button" type="button" disabled>Save alignment</button>
+      </div>
     </div>
   </div>
 
