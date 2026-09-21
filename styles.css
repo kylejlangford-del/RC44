@@ -193,6 +193,12 @@ a { color: inherit; }
   min-height: 560px;
 }
 
+.workspace--row {
+  display: block;
+  min-height: auto;
+  padding: 84px 0 64px;
+}
+
 .tools-column {
   width: 100%;
   max-width: 520px;
@@ -200,6 +206,18 @@ a { color: inherit; }
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+.tools-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+@media (max-width: 900px) {
+  .tools-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .feature-card {
