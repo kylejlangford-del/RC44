@@ -206,6 +206,15 @@
     var v = Math.round(value / step) * step;
     return Math.max(min, Math.min(max, v));
   }
+  function bucketNearestFromList(value, list) {
+    // Nearest breakpoint in an arbitrary (possibly uneven) sorted list, clamped to range.
+    var best = list[0], bestDiff = Math.abs(value - list[0]);
+    for (var i = 1; i < list.length; i++) {
+      var d = Math.abs(value - list[i]);
+      if (d < bestDiff) { bestDiff = d; best = list[i]; }
+    }
+    return best;
+  }
 
   // Vector subtraction: boat-over-ground (sog,cog) minus current (rate,set) -> water-referenced speed (kn).
   function waterSpeedKn(sogMs, cogDeg, currentRateKn, currentSetDeg) {
@@ -223,7 +232,15 @@
 
   // ================= Analysis =================
 
-  var BSP_BINS = [0, 2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20];
+  // BSP-vs-heel table row (BSP) bins, per boat — matched to each boat's actual H5000
+  // table breakpoints where known. Gemera's real table uses an even 2.5kn step; Artemis's
+  // uses uneven ones (confirmed from a real calibration report), so a shared uniform grid
+  // would misrepresent Artemis's table. Heel (column) bins aren't known to differ, so they
+  // stay shared until seen otherwise.
+  var BSP_BINS_BY_BOAT = {
+    artemis: [0, 4, 5, 6, 7, 8, 9, 10, 12, 14, 18, 21],
+    gemera: [0, 2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20]
+  };
   var HEEL_BINS = [-30, -25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30];
   var TWS_BINS = [0, 1, 5, 10, 15, 20, 25, 30];
   var TWA_BINS = [0, 30, 50, 90, 140, 160, 180];
@@ -291,6 +308,7 @@
     if (worstStd > MHU_HIGH_STD) mhuReasons.push("TWD spread up to ±" + fmt(worstStd, 1) + "° within a tack (High needs ≤" + MHU_HIGH_STD + "°) — likely real shifts during the session, not just noise");
 
     // ---- BSP vs heel correction table (tide-corrected water speed minus logged BSP) ----
+    var bspBins = BSP_BINS_BY_BOAT[currentBoat] || BSP_BINS_BY_BOAT.gemera;
     var bspHeelTable = {};
     var bspHeelCounts = {};
     steady.forEach(function (r) {
@@ -298,7 +316,7 @@
       var cur = currentAt(r.minuteOfDay);
       var water = waterSpeedKn(r.sog, r.cog, cur ? cur.rate : null, cur ? cur.set : null);
       if (water === null) return;
-      var bBsp = bucketNearest(ms2kn(r.bsp), 2.5, 0, 20);
+      var bBsp = bucketNearestFromList(ms2kn(r.bsp), bspBins);
       var bHeel = bucketNearest(r.heel, 5, -30, 30);
       var key = bBsp + "|" + bHeel;
       var corr = water - ms2kn(r.bsp);
@@ -364,7 +382,7 @@
       steadyCount: steady.length, portCount: port.length, stbdCount: stbd.length,
       twdPort: twdPort, twdStbd: twdStbd, twdPortStd: twdPortStd, twdStbdStd: twdStbdStd, mhuAdjustment: mhuAdjustment,
       currentTwaCorr: currentTwaCorr, suggestedMhu: suggestedMhu, mhuLevel: mhuLevel, mhuReasons: mhuReasons,
-      bspHeelTable: bspHeelTable, bspHeelCounts: bspHeelCounts,
+      bspBins: bspBins, bspHeelTable: bspHeelTable, bspHeelCounts: bspHeelCounts,
       angleTable: angleTable, speedTable: speedTable
     };
     renderResults(lastResults);
@@ -399,10 +417,10 @@
         " <span class='pill pill--warn'>moderate confidence — cross-check before applying</span>";
     }
 
-    renderGrid("bspHeelGrid", BSP_BINS, HEEL_BINS, function (r, c) {
+    renderGrid("bspHeelGrid", res.bspBins, HEEL_BINS, function (r, c) {
       var v = res.bspHeelTable[r + "|" + c];
       return v === undefined ? null : v;
-    }, function (v) { return fmt(v, 2); }, "kn correction — row = BSP (kn), col = heel (° positive = port tack)");
+    }, function (v) { return fmt(v, 2); }, "kn correction — row = BSP (kn), col = heel (° positive = port tack)" + (res.boat === "artemis" ? " · Artemis's own H5000 bin breakpoints" : ""));
 
     renderGrid("angleGrid", TWS_BINS, TWA_BINS, function (r, c) {
       var e = res.angleTable[r + "|" + c];
@@ -430,7 +448,7 @@
     detail += "<p class='import-step__hint' style='margin-top:8px;'>This is a whole-session port-vs-starboard average, same as the H5000 manual's Method 1 — it isn't a matched tack-by-tack manoeuvre analysis, so it's a cruder estimate than a professional calibration session. Checking it against two real reports for the same boat found the confidence level matters: a whole day's spread and sample count can look similar whether or not an adjustment was actually warranted, so treat anything below High as a hint to sanity-check, not a number to type straight into the H5000.</p>";
 
     detail += "<h3 style='margin-top:22px;'>BSP vs heel — sample counts</h3>";
-    detail += gridHtml(BSP_BINS, HEEL_BINS, function (r, c) {
+    detail += gridHtml(res.bspBins, HEEL_BINS, function (r, c) {
       var n = res.bspHeelCounts[r + "|" + c];
       return n ? String(n) : "";
     }, "Samples per bin — a cell with few samples is a noisy suggestion.");
@@ -496,7 +514,7 @@
     lines.push("");
     lines.push("BSP vs Heel table (kn correction)");
     lines.push("bsp\\heel," + HEEL_BINS.join(","));
-    BSP_BINS.forEach(function (r) {
+    lastResults.bspBins.forEach(function (r) {
       var row = [r];
       HEEL_BINS.forEach(function (c) { var v = lastResults.bspHeelTable[r + "|" + c]; row.push(v === undefined ? "" : v.toFixed(2)); });
       lines.push(row.join(","));
