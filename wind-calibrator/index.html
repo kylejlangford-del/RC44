@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#07111d" />
   <title>Wind Calibrator · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20260921" />
+  <link rel="stylesheet" href="../styles.css?v=20260921d" />
 </head>
 <body>
   <div class="bg-glow bg-glow--one"></div>
@@ -26,17 +26,22 @@
       <div class="section-kicker">Calibration</div>
       <h1>Wind calibrator</h1>
       <p class="intro">
-        Load the CSV log exported from the boat's B&amp;G H5000 system. The analysis compares port vs
-        starboard tack readings during steady sailing to suggest corrections for the H5000's editable
-        wind-angle, wind-speed and boat-speed tables. You review and enter the numbers into the B&amp;G
-        system yourself — this tool never talks to the boat directly.
+        Load the CSV log exported from the boat's B&amp;G H5000 system. Gives you suggested values for
+        the same tables a professional speedo/upwash calibration covers — MHU/TWA offset, boat speed vs
+        heel, upwash angle and upwash speed — computed from port/starboard tack comparisons during
+        steady sailing. You review and type the numbers into the H5000 yourself.
       </p>
 
-      <section class="panel" style="margin-bottom:24px;">
+      <div class="boat-tabs">
+        <button class="boat-tab is-active" type="button" data-boat="artemis">Artemis</button>
+        <button class="boat-tab" type="button" data-boat="gemera">Gemera</button>
+      </div>
+
+      <section class="panel" style="margin:20px 0 24px;">
         <div class="section-kicker">1. Log file</div>
         <p class="import-step__hint">
-          Select one or more CSV files from the log export (a session is often split into several
-          numbered files — you can select them all at once).
+          Select one or more CSV files from this boat's log export (a session is often split into
+          several numbered files — select them all at once).
         </p>
         <label class="file-drop">
           <input id="csvInput" type="file" accept=".csv,text/csv" multiple />
@@ -46,35 +51,57 @@
       </section>
 
       <section class="panel" style="margin-bottom:24px;">
-        <div class="section-kicker">2. Steady-state filter</div>
+        <div class="section-kicker">2. Measured current (optional, recommended)</div>
         <p class="import-step__hint">
-          Only samples matching these thresholds are used, so tacks, mark roundings and manoeuvres don't
-          skew the averages.
+          Enter current readings from the day (e.g. from a drift-measurement app) so the boat-speed
+          table corrects for tide rather than assuming flat water. Nearest reading by time is used.
         </p>
+        <table class="compare-table" style="max-width:520px;">
+          <thead><tr><th>Time</th><th>Rate (kn)</th><th>Set (° true)</th><th></th></tr></thead>
+          <tbody id="tideBody"></tbody>
+        </table>
+        <button id="addTideRowBtn" class="ghost-button" type="button" style="margin-top:12px;">Add reading</button>
+      </section>
+
+      <section class="panel" style="margin-bottom:24px;">
+        <div class="section-kicker">3. Steady-state filter</div>
         <div class="filter-grid">
-          <label class="field-inline"><span>Min boat speed (m/s)</span><input id="minBsp" type="number" step="0.1" value="2"></label>
+          <label class="field-inline"><span>Min boat speed (kn)</span><input id="minBsp" type="number" step="0.5" value="4"></label>
           <label class="field-inline"><span>Max rate of turn (°/s)</span><input id="maxRot" type="number" step="0.5" value="3"></label>
-          <label class="field-inline"><span>Min |TWA| (°)</span><input id="minTwa" type="number" step="1" value="15"></label>
-          <label class="field-inline"><span>Max |TWA| (°)</span><input id="maxTwa" type="number" step="1" value="60"></label>
+          <label class="field-inline"><span>MHU window: min |TWA| (°)</span><input id="minTwa" type="number" step="1" value="15"></label>
+          <label class="field-inline"><span>MHU window: max |TWA| (°)</span><input id="maxTwa" type="number" step="1" value="60"></label>
         </div>
         <button id="analyzeBtn" class="ghost-button" type="button" disabled style="margin-top:16px;">Run analysis</button>
       </section>
 
-      <section id="resultsPanel" class="panel is-hidden">
-        <div class="section-kicker">3. Suggested corrections</div>
-        <p id="sampleCounts" class="import-step__hint"></p>
-        <table class="compare-table">
-          <thead>
-            <tr>
-              <th>H5000 table</th>
-              <th>Current (from log)</th>
-              <th>Suggested correction</th>
-              <th>Why</th>
-            </tr>
-          </thead>
-          <tbody id="correctionsBody"></tbody>
-        </table>
-        <button id="downloadCorrectionsBtn" class="ghost-button" type="button" style="margin-top:20px;">Download corrections as CSV</button>
+      <section id="resultsPanel" class="is-hidden">
+        <div class="section-kicker">Answers — <span id="resultsBoat"></span></div>
+        <p id="sampleCounts" class="import-step__hint" style="margin-bottom:20px;"></p>
+
+        <div class="panel" style="margin-bottom:20px;">
+          <h2 style="margin-top:0;">MHU / TWA correction</h2>
+          <p id="mhuAnswer" style="font-size:1.6rem;"></p>
+        </div>
+
+        <div class="panel" style="margin-bottom:20px;">
+          <h2 style="margin-top:0;">Boat speed vs heel</h2>
+          <div id="bspHeelGrid"></div>
+        </div>
+
+        <div class="panel" style="margin-bottom:20px;">
+          <h2 style="margin-top:0;">Upwash angle</h2>
+          <div id="angleGrid"></div>
+        </div>
+
+        <div class="panel" style="margin-bottom:20px;">
+          <h2 style="margin-top:0;">Upwash speed</h2>
+          <div id="speedGrid"></div>
+        </div>
+
+        <button id="detailToggle" class="text-link" type="button">Show detailed report ▾</button>
+        <div id="detailBody" class="panel is-hidden" style="margin-top:14px;"></div>
+
+        <button id="downloadCorrectionsBtn" class="ghost-button" type="button" style="margin-top:24px;">Download all corrections as CSV</button>
       </section>
     </div>
   </main>

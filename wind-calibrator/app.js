@@ -1,15 +1,13 @@
 (function () {
   "use strict";
 
-  // ---------- CSV parsing (B&G H5000 export: ISO-8859-1, comma-delimited, ~10Hz) ----------
+  // ================= CSV parsing (B&G H5000 export: ISO-8859-1, comma-delimited, ~10Hz) =================
 
   var COLS = {
     time: "Date/Time (UTC)",
     twd: "True Wind Direction °M",
     tws: "True Wind Speed m/s",
     twa: "True Wind Angle °",
-    aws: "Apparent Wind Speed m/s",
-    awa: "Apparent Wind Angle °",
     twaCorr: "TWA Correction °",
     twsCorr: "TWS Correction m/s",
     bspCorr: "Boat Speed Correction m/s",
@@ -18,29 +16,37 @@
     bsp: "Boat Speed m/s",
     stw: "Speed Through Water m/s",
     sog: "Speed Over Ground m/s",
+    cog: "Course Over Ground °M",
     rot: "Rate of Turn °/sec",
-    mwa: "Measured Wind Angle °",
-    mws: "Measured Wind Speed m/s",
-    origTwa: "Orig TWA °",
-    origTws: "Orig TWS m/s",
-    corrMwa: "Corrected MWA °",
-    corrMws: "Corrected MWS m/s",
-    rudder: "Rudder Angle °"
+    leeway: "Signed Leeway Angle °"
   };
 
-  var rows = []; // parsed numeric rows
-  var header = [];
-  var fileCount = 0;
+  var STATE_PREFIX = "rc44-windcal-v1-";
+  var currentBoat = "artemis";
+  var rowsByBoat = { artemis: [], gemera: [] };
+  var tideByBoat = { artemis: [], gemera: [] };
 
-  function parseCsvText(text) {
+  loadTide();
+
+  function loadTide() {
+    try {
+      var raw = localStorage.getItem(STATE_PREFIX + currentBoat + "-tide");
+      tideByBoat[currentBoat] = raw ? JSON.parse(raw) : [];
+    } catch (e) { tideByBoat[currentBoat] = []; }
+  }
+
+  function saveTide() {
+    try { localStorage.setItem(STATE_PREFIX + currentBoat + "-tide", JSON.stringify(tideByBoat[currentBoat])); } catch (e) { /* ignore */ }
+  }
+
+  function splitCsvLine(line) { return line.split(","); }
+
+  function parseCsvText(text, target) {
     var lines = text.split(/\r?\n/);
     if (!lines.length) return;
     var head = splitCsvLine(lines[0]);
-    if (!header.length) header = head;
     var idx = {};
-    Object.keys(COLS).forEach(function (key) {
-      idx[key] = head.indexOf(COLS[key]);
-    });
+    Object.keys(COLS).forEach(function (key) { idx[key] = head.indexOf(COLS[key]); });
     for (var i = 1; i < lines.length; i++) {
       var line = lines[i];
       if (!line) continue;
@@ -52,22 +58,23 @@
         row[key] = v === "" || v === undefined ? null : parseFloat(v);
       });
       row.timeRaw = cells[0];
-      if (row.twa !== null || row.tws !== null) rows.push(row);
+      row.minuteOfDay = parseMinuteOfDay(cells[0]);
+      if (row.twa !== null || row.tws !== null) target.push(row);
     }
   }
 
-  function splitCsvLine(line) {
-    // No quoted fields with embedded commas in this export — plain split is safe and fast.
-    return line.split(",");
+  function parseMinuteOfDay(raw) {
+    // "27.06.2026 09:10:00.470" -> minutes since midnight (UTC, as logged)
+    var m = /(\d{2}):(\d{2}):(\d{2})/.exec(raw || "");
+    if (!m) return null;
+    return Number(m[1]) * 60 + Number(m[2]) + Number(m[3]) / 60;
   }
 
   function readFileAsLatin1(file) {
     return new Promise(function (resolve, reject) {
       var reader = new FileReader();
       reader.onload = function () {
-        var bytes = new Uint8Array(reader.result);
-        var text = new TextDecoder("iso-8859-1").decode(bytes);
-        resolve(text);
+        resolve(new TextDecoder("iso-8859-1").decode(new Uint8Array(reader.result)));
       };
       reader.onerror = reject;
       reader.readAsArrayBuffer(file);
@@ -81,178 +88,375 @@
   fileInput.addEventListener("change", async function () {
     var files = Array.from(fileInput.files || []);
     if (!files.length) return;
-    rows = [];
-    header = [];
-    fileCount = files.length;
+    var rows = [];
     summaryEl.textContent = "Reading " + files.length + " file(s)…";
     summaryEl.classList.remove("is-hidden");
     for (var i = 0; i < files.length; i++) {
+      rows = rows.concat([]); // no-op, keep var
       var text = await readFileAsLatin1(files[i]);
-      parseCsvText(text);
+      parseCsvText(text, rows);
     }
     rows.sort(function (a, b) { return (a.timeRaw || "").localeCompare(b.timeRaw || ""); });
+    rowsByBoat[currentBoat] = rows;
     summaryEl.textContent = files.length + " file(s) loaded · " + rows.length.toLocaleString() + " samples";
     analyzeBtn.disabled = rows.length === 0;
   });
 
-  // ---------- Analysis ----------
+  // ================= Boat switcher =================
 
-  function mean(arr) {
-    if (!arr.length) return null;
-    var s = 0;
-    for (var i = 0; i < arr.length; i++) s += arr[i];
-    return s / arr.length;
+  document.querySelectorAll(".boat-tab").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      currentBoat = btn.dataset.boat;
+      document.querySelectorAll(".boat-tab").forEach(function (b) { b.classList.toggle("is-active", b === btn); });
+      loadTide();
+      renderTideTable();
+      var rows = rowsByBoat[currentBoat];
+      summaryEl.textContent = rows.length ? rows.length.toLocaleString() + " samples loaded for " + currentBoat : "";
+      summaryEl.classList.toggle("is-hidden", !rows.length);
+      analyzeBtn.disabled = !rows.length;
+      document.getElementById("resultsPanel").classList.add("is-hidden");
+    });
+  });
+
+  // ================= Tide / current input =================
+
+  function renderTideTable() {
+    var body = document.getElementById("tideBody");
+    body.innerHTML = "";
+    tideByBoat[currentBoat].forEach(function (t, i) {
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td><input type='time' value='" + t.time + "' data-i='" + i + "' data-f='time'></td>" +
+        "<td><input type='number' step='0.01' value='" + t.rate + "' data-i='" + i + "' data-f='rate' style='width:80px;'></td>" +
+        "<td><input type='number' step='1' value='" + t.set + "' data-i='" + i + "' data-f='set' style='width:80px;'></td>" +
+        "<td><button type='button' class='text-link' data-remove='" + i + "'>Remove</button></td>";
+      body.appendChild(tr);
+    });
+    body.querySelectorAll("input").forEach(function (inp) {
+      inp.addEventListener("change", function () {
+        var i = Number(inp.dataset.i), f = inp.dataset.f;
+        tideByBoat[currentBoat][i][f] = f === "time" ? inp.value : Number(inp.value);
+        saveTide();
+      });
+    });
+    body.querySelectorAll("[data-remove]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        tideByBoat[currentBoat].splice(Number(btn.dataset.remove), 1);
+        saveTide();
+        renderTideTable();
+      });
+    });
   }
 
-  function stdev(arr, m) {
-    if (arr.length < 2) return null;
-    var s = 0;
-    for (var i = 0; i < arr.length; i++) s += (arr[i] - m) * (arr[i] - m);
-    return Math.sqrt(s / (arr.length - 1));
+  document.getElementById("addTideRowBtn").addEventListener("click", function () {
+    tideByBoat[currentBoat].push({ time: "12:00", rate: 1.0, set: 0 });
+    saveTide();
+    renderTideTable();
+  });
+
+  function currentAt(minuteOfDay) {
+    var tide = tideByBoat[currentBoat];
+    if (!tide.length || minuteOfDay === null) return null;
+    var best = null, bestDiff = Infinity;
+    tide.forEach(function (t) {
+      var m = /(\d{2}):(\d{2})/.exec(t.time);
+      if (!m) return;
+      var tm = Number(m[1]) * 60 + Number(m[2]);
+      var diff = Math.abs(tm - minuteOfDay);
+      if (diff < bestDiff) { bestDiff = diff; best = t; }
+    });
+    return best; // nearest-time reading, {rate (kn), set (deg true)}
   }
 
+  // ================= Math helpers =================
+
+  function toRad(d) { return d * Math.PI / 180; }
+  function mean(arr) { if (!arr.length) return null; var s = 0; for (var i = 0; i < arr.length; i++) s += arr[i]; return s / arr.length; }
   function angleMean(deg) {
-    // circular mean, for headings/TWD that can wrap through 0/360
     if (!deg.length) return null;
     var sx = 0, sy = 0;
-    for (var i = 0; i < deg.length; i++) {
-      var r = deg[i] * Math.PI / 180;
-      sx += Math.cos(r); sy += Math.sin(r);
-    }
+    deg.forEach(function (d) { sx += Math.cos(toRad(d)); sy += Math.sin(toRad(d)); });
     var a = Math.atan2(sy / deg.length, sx / deg.length) * 180 / Math.PI;
     return a < 0 ? a + 360 : a;
   }
+  function angleDiff(a, b) { var d = a - b; while (d > 180) d -= 360; while (d < -180) d += 360; return d; }
+  function ms2kn(v) { return v === null || v === undefined ? null : v * 1.94384; }
+  function fmt(v, d) { return v === null || v === undefined || isNaN(v) ? "—" : v.toFixed(d === undefined ? 2 : d); }
 
-  function angleDiff(a, b) {
-    var d = a - b;
-    while (d > 180) d -= 360;
-    while (d < -180) d += 360;
-    return d;
+  function bucketFloor(value, breakpoints) {
+    // Largest breakpoint <= value; clamps to range.
+    var b = breakpoints[0];
+    for (var i = 0; i < breakpoints.length; i++) {
+      if (breakpoints[i] <= value) b = breakpoints[i]; else break;
+    }
+    return b;
+  }
+  function bucketNearest(value, step, min, max) {
+    var v = Math.round(value / step) * step;
+    return Math.max(min, Math.min(max, v));
   }
 
+  // Vector subtraction: boat-over-ground (sog,cog) minus current (rate,set) -> water-referenced speed (kn).
+  function waterSpeedKn(sogMs, cogDeg, currentRateKn, currentSetDeg) {
+    if (sogMs === null || cogDeg === null) return null;
+    var sogKn = ms2kn(sogMs);
+    var bx = sogKn * Math.sin(toRad(cogDeg)), by = sogKn * Math.cos(toRad(cogDeg));
+    var cx = 0, cy = 0;
+    if (currentRateKn !== null && currentSetDeg !== null) {
+      cx = currentRateKn * Math.sin(toRad(currentSetDeg));
+      cy = currentRateKn * Math.cos(toRad(currentSetDeg));
+    }
+    var wx = bx - cx, wy = by - cy;
+    return Math.sqrt(wx * wx + wy * wy);
+  }
+
+  // ================= Analysis =================
+
+  var BSP_BINS = [0, 2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20];
+  var HEEL_BINS = [-30, -25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30];
+  var TWS_BINS = [0, 1, 5, 10, 15, 20, 25, 30];
+  var TWA_BINS = [0, 30, 50, 90, 140, 160, 180];
+
+  var lastResults = null;
+
   function runAnalysis() {
+    var rows = rowsByBoat[currentBoat];
     var minBsp = parseFloat(document.getElementById("minBsp").value) || 0;
     var maxRot = parseFloat(document.getElementById("maxRot").value) || 999;
-    var minTwa = parseFloat(document.getElementById("minTwa").value) || 0;
-    var maxTwa = parseFloat(document.getElementById("maxTwa").value) || 180;
+    var mhuMinTwa = parseFloat(document.getElementById("minTwa").value) || 15;
+    var mhuMaxTwa = parseFloat(document.getElementById("maxTwa").value) || 60;
+    var hasTide = tideByBoat[currentBoat].length > 0;
 
     var steady = rows.filter(function (r) {
       if (r.twa === null || r.bsp === null) return false;
       if (r.bsp < minBsp) return false;
       if (r.rot !== null && Math.abs(r.rot) > maxRot) return false;
-      var a = Math.abs(r.twa);
-      if (a < minTwa || a > maxTwa) return false;
       return true;
     });
 
-    var port = steady.filter(function (r) { return r.twa < 0; });
-    var stbd = steady.filter(function (r) { return r.twa >= 0; });
-
+    // ---- MHU offset / global TWA correction (H5000 manual Method 1: TWD monitoring across tacks) ----
+    var mhuSet = steady.filter(function (r) { return Math.abs(r.twa) >= mhuMinTwa && Math.abs(r.twa) <= mhuMaxTwa; });
+    var port = mhuSet.filter(function (r) { return r.twa < 0; });
+    var stbd = mhuSet.filter(function (r) { return r.twa >= 0; });
     var twdPort = angleMean(port.map(function (r) { return r.twd; }).filter(function (v) { return v !== null; }));
     var twdStbd = angleMean(stbd.map(function (r) { return r.twd; }).filter(function (v) { return v !== null; }));
+    var mhuAdjustment = (twdPort !== null && twdStbd !== null) ? angleDiff(twdStbd, twdPort) / 2 : null;
+    var currentTwaCorr = mean(mhuSet.map(function (r) { return r.twaCorr; }).filter(function (v) { return v !== null; }));
+    var suggestedMhu = (currentTwaCorr !== null && mhuAdjustment !== null) ? currentTwaCorr + mhuAdjustment : null;
 
-    var results = {
-      steadyCount: steady.length,
-      portCount: port.length,
-      stbdCount: stbd.length,
-      twdPort: twdPort,
-      twdStbd: twdStbd,
-      twaOffset: null,
-      twsPort: mean(port.map(function (r) { return r.tws; }).filter(function (v) { return v !== null; })),
-      twsStbd: mean(stbd.map(function (r) { return r.tws; }).filter(function (v) { return v !== null; })),
-      bspVsStw: null,
-      bspVsSog: null,
-      currentTwaCorr: mean(steady.map(function (r) { return r.twaCorr; }).filter(function (v) { return v !== null; })),
-      currentTwsCorr: mean(steady.map(function (r) { return r.twsCorr; }).filter(function (v) { return v !== null; })),
-      currentBspCorr: mean(steady.map(function (r) { return r.bspCorr; }).filter(function (v) { return v !== null; }))
+    // ---- BSP vs heel correction table (tide-corrected water speed minus logged BSP) ----
+    var bspHeelTable = {};
+    var bspHeelCounts = {};
+    steady.forEach(function (r) {
+      if (r.heel === null) return;
+      var cur = currentAt(r.minuteOfDay);
+      var water = waterSpeedKn(r.sog, r.cog, cur ? cur.rate : null, cur ? cur.set : null);
+      if (water === null) return;
+      var bBsp = bucketNearest(ms2kn(r.bsp), 2.5, 0, 20);
+      var bHeel = bucketNearest(r.heel, 5, -30, 30);
+      var key = bBsp + "|" + bHeel;
+      var corr = water - ms2kn(r.bsp);
+      if (!bspHeelTable[key]) { bspHeelTable[key] = []; }
+      bspHeelTable[key].push(corr);
+    });
+    Object.keys(bspHeelTable).forEach(function (k) {
+      bspHeelCounts[k] = bspHeelTable[k].length;
+      bspHeelTable[k] = mean(bspHeelTable[k]);
+    });
+
+    // ---- Upwash angle table (TWA correction, indexed by TWS x |TWA|) ----
+    var angleBins = {}; // key: twsBin|twaBin -> {port:[twd], stbd:[twd], twaCorr:[]}
+    steady.forEach(function (r) {
+      if (r.tws === null || r.twa === null || r.twd === null) return;
+      var bTws = bucketFloor(r.tws, TWS_BINS);
+      var bTwa = bucketFloor(Math.abs(r.twa), TWA_BINS);
+      var key = bTws + "|" + bTwa;
+      if (!angleBins[key]) angleBins[key] = { port: [], stbd: [], twaCorr: [] };
+      (r.twa < 0 ? angleBins[key].port : angleBins[key].stbd).push(r.twd);
+      if (r.twaCorr !== null) angleBins[key].twaCorr.push(r.twaCorr);
+    });
+    var angleTable = {}, angleCounts = {};
+    Object.keys(angleBins).forEach(function (key) {
+      var b = angleBins[key];
+      var tp = angleMean(b.port), ts = angleMean(b.stbd);
+      var cur = mean(b.twaCorr);
+      angleCounts[key] = b.port.length + b.stbd.length;
+      if (tp === null || ts === null || cur === null) { angleTable[key] = null; return; }
+      var adj = angleDiff(ts, tp) / 2;
+      angleTable[key] = { current: cur, suggested: cur + adj, n: angleCounts[key] };
+    });
+
+    // ---- Upwash speed table (TWS correction, indexed by TWS x |TWA|; reaching = reference) ----
+    var speedBins = {}; // key: twsBin|twaBin -> {tws:[], twsCorr:[]}
+    steady.forEach(function (r) {
+      if (r.tws === null || r.twa === null) return;
+      var bTws = bucketFloor(r.tws, TWS_BINS);
+      var bTwa = bucketFloor(Math.abs(r.twa), TWA_BINS);
+      var key = bTws + "|" + bTwa;
+      if (!speedBins[key]) speedBins[key] = { tws: [], twsCorr: [] };
+      speedBins[key].tws.push(r.tws);
+      if (r.twsCorr !== null) speedBins[key].twsCorr.push(r.twsCorr);
+    });
+    var speedTable = {};
+    TWS_BINS.forEach(function (bTws) {
+      var refKey = bTws + "|90";
+      var ref = speedBins[refKey] ? mean(speedBins[refKey].tws) : null;
+      TWA_BINS.forEach(function (bTwa) {
+        var key = bTws + "|" + bTwa;
+        var b = speedBins[key];
+        if (!b || !b.tws.length) { speedTable[key] = null; return; }
+        var thisMean = mean(b.tws);
+        var cur = mean(b.twsCorr);
+        if (cur === null || ref === null) { speedTable[key] = { current: cur, suggested: null, n: b.tws.length }; return; }
+        var delta = ref - thisMean;
+        speedTable[key] = { current: cur, suggested: cur + delta, n: b.tws.length };
+      });
+    });
+
+    lastResults = {
+      boat: currentBoat, hasTide: hasTide,
+      steadyCount: steady.length, portCount: port.length, stbdCount: stbd.length,
+      twdPort: twdPort, twdStbd: twdStbd, mhuAdjustment: mhuAdjustment,
+      currentTwaCorr: currentTwaCorr, suggestedMhu: suggestedMhu,
+      bspHeelTable: bspHeelTable, bspHeelCounts: bspHeelCounts,
+      angleTable: angleTable, speedTable: speedTable
     };
-
-    if (twdPort !== null && twdStbd !== null) {
-      // If the wind angle calibration is correct, TWD should read the same on both tacks
-      // (same true wind, symmetric error cancels). Half the split is the angle correction needed.
-      results.twaOffset = angleDiff(twdStbd, twdPort) / 2;
-    }
-
-    var bspVals = steady.map(function (r) { return r.bsp; }).filter(function (v) { return v !== null; });
-    var stwVals = steady.map(function (r) { return r.stw; }).filter(function (v) { return v !== null; });
-    var sogVals = steady.map(function (r) { return r.sog; }).filter(function (v) { return v !== null; });
-    var bspMean = mean(bspVals), stwMean = mean(stwVals), sogMean = mean(sogVals);
-    if (bspMean && stwMean) results.bspVsStw = bspMean - stwMean;
-    if (bspMean && sogMean) results.bspVsSog = bspMean - sogMean;
-
-    renderResults(results, steady.length);
-  }
-
-  function fmt(v, d) {
-    if (v === null || v === undefined || isNaN(v)) return "—";
-    return v.toFixed(d === undefined ? 2 : d);
-  }
-
-  function renderResults(res, n) {
-    var out = document.getElementById("resultsPanel");
-    out.classList.remove("is-hidden");
-
-    document.getElementById("sampleCounts").textContent =
-      n.toLocaleString() + " steady-state samples used (" + res.portCount.toLocaleString() +
-      " port tack, " + res.stbdCount.toLocaleString() + " starboard tack)";
-
-    var rowsHtml = "";
-    rowsHtml += correctionRow(
-      "TWA correction (wind angle offset)",
-      fmt(res.currentTwaCorr, 2) + "°",
-      res.twaOffset === null ? "—" : (res.twaOffset >= 0 ? "+" : "") + fmt(res.twaOffset, 2) + "°",
-      "Port-tack TWD averaged " + fmt(res.twdPort, 1) + "°M, starboard " + fmt(res.twdStbd, 1) +
-      "°M. If the sensor were perfectly calibrated these would match — half the gap is the angle correction to add to the H5000 wind-angle table."
-    );
-    rowsHtml += correctionRow(
-      "TWS (wind speed) sanity check",
-      fmt(res.currentTwsCorr, 2) + " m/s",
-      "—",
-      "Port-tack mean TWS " + fmt(res.twsPort, 2) + " m/s vs starboard " + fmt(res.twsStbd, 2) +
-      " m/s. TWS calibration needs an independent reference (calibrated shore/buoy anemometer or a synced boat) — this log alone can flag a port/starboard split but not a true offset."
-    );
-    rowsHtml += correctionRow(
-      "Boat speed vs speed-through-water",
-      fmt(res.currentBspCorr, 3) + " m/s",
-      res.bspVsStw === null ? "—" : (res.bspVsStw >= 0 ? "+" : "") + fmt(res.bspVsStw, 3) + " m/s",
-      "Average Boat Speed (calibrated) minus Speed Through Water (paddle wheel) across the steady-state sample. A consistent non-zero gap suggests the boat-speed calibration factor needs adjusting by roughly this amount."
-    );
-    rowsHtml += correctionRow(
-      "Boat speed vs speed-over-ground",
-      "—",
-      res.bspVsSog === null ? "—" : (res.bspVsSog >= 0 ? "+" : "") + fmt(res.bspVsSog, 3) + " m/s",
-      "Same comparison against GPS SOG — only meaningful with negligible current/tide during the sample, shown for cross-checking against the STW comparison above."
-    );
-
-    document.getElementById("correctionsBody").innerHTML = rowsHtml;
-  }
-
-  function correctionRow(label, current, suggested, note) {
-    return "<tr>" +
-      "<td>" + label + "</td>" +
-      "<td>" + current + "</td>" +
-      "<td><input type=\"text\" class=\"correction-input\" value=\"" + (suggested === "—" ? "" : suggested) + "\"></td>" +
-      "<td class=\"correction-note\">" + note + "</td>" +
-      "</tr>";
+    renderResults(lastResults);
   }
 
   analyzeBtn.addEventListener("click", runAnalysis);
 
-  document.getElementById("downloadCorrectionsBtn").addEventListener("click", function () {
-    var inputs = document.querySelectorAll(".correction-input");
-    var labels = document.querySelectorAll("#correctionsBody tr td:first-child");
-    var lines = ["Parameter,Suggested correction"];
-    inputs.forEach(function (inp, i) {
-      lines.push('"' + labels[i].textContent + '","' + inp.value.replace(/"/g, '""') + '"');
+  // ================= Rendering =================
+
+  function renderResults(res) {
+    document.getElementById("resultsPanel").classList.remove("is-hidden");
+    document.getElementById("resultsBoat").textContent = res.boat.charAt(0).toUpperCase() + res.boat.slice(1);
+    document.getElementById("sampleCounts").textContent =
+      res.steadyCount.toLocaleString() + " steady-state samples (" + res.portCount.toLocaleString() + " port / " +
+      res.stbdCount.toLocaleString() + " starboard in the MHU angle window)" +
+      (res.hasTide ? " · tide-corrected using " + tideByBoat[currentBoat].length + " current reading(s)" : " · no tide data entered — boat-speed table uses raw SOG");
+
+    // Headline answers
+    document.getElementById("mhuAnswer").innerHTML =
+      "<strong>" + fmt(res.suggestedMhu, 1) + "°</strong>" +
+      (res.currentTwaCorr !== null ? " <span class='pill'>currently " + fmt(res.currentTwaCorr, 1) + "°</span>" : "");
+
+    renderGrid("bspHeelGrid", BSP_BINS, HEEL_BINS, function (r, c) {
+      var v = res.bspHeelTable[r + "|" + c];
+      return v === undefined ? null : v;
+    }, function (v) { return fmt(v, 2); }, "kn correction — row = BSP (kn), col = heel (° positive = port tack)");
+
+    renderGrid("angleGrid", TWS_BINS, TWA_BINS, function (r, c) {
+      var e = res.angleTable[r + "|" + c];
+      return e ? e.suggested : null;
+    }, function (v) { return fmt(v, 1); }, "° TWA correction — row = TWS (kn), col = |TWA| (°)");
+
+    renderGrid("speedGrid", TWS_BINS, TWA_BINS, function (r, c) {
+      var e = res.speedTable[r + "|" + c];
+      return e ? e.suggested : null;
+    }, function (v) { return fmt(v, 2); }, "kn TWS correction — row = TWS (kn), col = |TWA| (°), reaching (90°) used as reference");
+
+    // Detailed report
+    var detail = "";
+    detail += "<h3>MHU offset / TWA — method detail</h3>";
+    detail += "<p class='import-step__hint'>H5000 manual Method 1: compare mean True Wind Direction on each tack — if they don't match, half the gap is added to the TWA/MHU correction, in the direction that brings both tacks' TWD to agree.</p>";
+    detail += "<table class='compare-table'><tbody>" +
+      "<tr><td>Port-tack mean TWD</td><td>" + fmt(res.twdPort, 1) + "°</td></tr>" +
+      "<tr><td>Starboard-tack mean TWD</td><td>" + fmt(res.twdStbd, 1) + "°</td></tr>" +
+      "<tr><td>Suggested adjustment</td><td>" + (res.mhuAdjustment >= 0 ? "+" : "") + fmt(res.mhuAdjustment, 2) + "°</td></tr>" +
+      "<tr><td>Current TWA correction (from log)</td><td>" + fmt(res.currentTwaCorr, 2) + "°</td></tr>" +
+      "<tr><td>Suggested new value</td><td>" + fmt(res.suggestedMhu, 2) + "°</td></tr>" +
+      "</tbody></table>";
+
+    detail += "<h3 style='margin-top:22px;'>BSP vs heel — sample counts</h3>";
+    detail += gridHtml(BSP_BINS, HEEL_BINS, function (r, c) {
+      var n = res.bspHeelCounts[r + "|" + c];
+      return n ? String(n) : "";
+    }, "Samples per bin — a cell with few samples is a noisy suggestion.");
+
+    detail += "<h3 style='margin-top:22px;'>Upwash angle — current vs suggested</h3>";
+    detail += "<table class='compare-table'><thead><tr><th>TWS</th><th>|TWA|</th><th>n</th><th>Current</th><th>Suggested</th></tr></thead><tbody>";
+    TWS_BINS.forEach(function (bTws) {
+      TWA_BINS.forEach(function (bTwa) {
+        var e = res.angleTable[bTws + "|" + bTwa];
+        if (!e) return;
+        detail += "<tr><td>" + bTws + "</td><td>" + bTwa + "</td><td>" + e.n + "</td><td>" + fmt(e.current, 1) + "°</td><td>" + fmt(e.suggested, 1) + "°</td></tr>";
+      });
     });
+    detail += "</tbody></table>";
+
+    document.getElementById("detailBody").innerHTML = detail;
+  }
+
+  function gridHtml(rows, cols, getVal, caption) {
+    var html = "<p class='import-step__hint'>" + caption + "</p>";
+    html += "<table class='compare-table grid-table'><thead><tr><th></th>";
+    cols.forEach(function (c) { html += "<th>" + c + "</th>"; });
+    html += "</tr></thead><tbody>";
+    rows.forEach(function (r) {
+      html += "<tr><th>" + r + "</th>";
+      cols.forEach(function (c) {
+        var v = getVal(r, c);
+        html += "<td>" + (v === null || v === undefined || v === "" ? "—" : v) + "</td>";
+      });
+      html += "</tr>";
+    });
+    html += "</tbody></table>";
+    return html;
+  }
+
+  function renderGrid(elId, rows, cols, getVal, fmtFn, caption) {
+    document.getElementById(elId).innerHTML = "<p class='import-step__hint'>" + caption + "</p>" +
+      gridHtml(rows, cols, function (r, c) {
+        var v = getVal(r, c);
+        return v === null || v === undefined ? "" : fmtFn(v);
+      }, "");
+  }
+
+  document.getElementById("detailToggle").addEventListener("click", function () {
+    var body = document.getElementById("detailBody");
+    var open = !body.classList.contains("is-hidden");
+    body.classList.toggle("is-hidden", open);
+    document.getElementById("detailToggle").textContent = open ? "Show detailed report ▾" : "Hide detailed report ▴";
+  });
+
+  document.getElementById("downloadCorrectionsBtn").addEventListener("click", function () {
+    if (!lastResults) return;
+    var lines = ["RC44 Wind Calibrator — " + lastResults.boat + " — " + new Date().toISOString()];
+    lines.push("");
+    lines.push("MHU / TWA correction, suggested," + fmt(lastResults.suggestedMhu, 2));
+    lines.push("");
+    lines.push("BSP vs Heel table (kn correction)");
+    lines.push("bsp\\heel," + HEEL_BINS.join(","));
+    BSP_BINS.forEach(function (r) {
+      var row = [r];
+      HEEL_BINS.forEach(function (c) { var v = lastResults.bspHeelTable[r + "|" + c]; row.push(v === undefined ? "" : v.toFixed(2)); });
+      lines.push(row.join(","));
+    });
+    lines.push("");
+    lines.push("Upwash angle table (deg correction, suggested)");
+    lines.push("tws\\twa," + TWA_BINS.join(","));
+    TWS_BINS.forEach(function (r) {
+      var row = [r];
+      TWA_BINS.forEach(function (c) { var e = lastResults.angleTable[r + "|" + c]; row.push(e && e.suggested !== null ? e.suggested.toFixed(1) : ""); });
+      lines.push(row.join(","));
+    });
+    lines.push("");
+    lines.push("Upwash speed table (kn correction, suggested)");
+    lines.push("tws\\twa," + TWA_BINS.join(","));
+    TWS_BINS.forEach(function (r) {
+      var row = [r];
+      TWA_BINS.forEach(function (c) { var e = lastResults.speedTable[r + "|" + c]; row.push(e && e.suggested !== null ? e.suggested.toFixed(2) : ""); });
+      lines.push(row.join(","));
+    });
+
     var blob = new Blob([lines.join("\n")], { type: "text/csv" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
-    a.href = url;
-    a.download = "h5000-corrections-" + new Date().toISOString().slice(0, 10) + ".csv";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    a.href = url; a.download = "h5000-corrections-" + lastResults.boat + "-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   });
+
+  renderTideTable();
 })();
