@@ -180,6 +180,17 @@
     return a < 0 ? a + 360 : a;
   }
   function angleDiff(a, b) { var d = a - b; while (d > 180) d -= 360; while (d < -180) d += 360; return d; }
+  function angleStd(deg) {
+    // Circular standard deviation (degrees) — how scattered the TWD readings are.
+    // Wide sailing-in-shifts logs give a high value; a clean steady leg gives a low one.
+    if (!deg.length) return null;
+    var sx = 0, sy = 0;
+    deg.forEach(function (d) { sx += Math.cos(toRad(d)); sy += Math.sin(toRad(d)); });
+    var R = Math.sqrt(sx * sx + sy * sy) / deg.length;
+    if (R <= 0) return 180;
+    if (R >= 1) return 0;
+    return Math.sqrt(-2 * Math.log(R)) * 180 / Math.PI;
+  }
   function ms2kn(v) { return v === null || v === undefined ? null : v * 1.94384; }
   function fmt(v, d) { return v === null || v === undefined || isNaN(v) ? "—" : v.toFixed(d === undefined ? 2 : d); }
 
@@ -217,6 +228,18 @@
   var TWS_BINS = [0, 1, 5, 10, 15, 20, 25, 30];
   var TWA_BINS = [0, 30, 50, 90, 140, 160, 180];
 
+  // MHU confidence: a whole-session port-vs-starboard TWD average (H5000 manual Method 1)
+  // is a cruder estimate than a professional's matched tack-by-tack manoeuvre analysis, and
+  // checking it against two real calibration reports for the same physical logs showed why:
+  // both real sessions had similar TWD spread (7-14°) and plenty of samples, yet one report
+  // called for an adjustment and the other explicitly said "not enough valid manoeuvres,
+  // leave as is" — a whole-day spread/count threshold alone can't reliably tell those two
+  // apart. So this isn't a pass/fail gate pretending to replicate that judgment call; it's a
+  // three-tier confidence label (High / Moderate / Low) that always shows the underlying
+  // numbers, and asks for a sanity-check against feel/logbook whenever it isn't clearly High.
+  var MHU_HIGH_SAMPLES = 300, MHU_HIGH_STD = 6, MHU_HIGH_BALANCE = 0.5;   // apply as suggested
+  var MHU_LOW_SAMPLES = 50, MHU_LOW_STD = 25, MHU_LOW_BALANCE = 0.15;      // too thin to use at all
+
   var lastResults = null;
 
   function runAnalysis() {
@@ -238,11 +261,34 @@
     var mhuSet = steady.filter(function (r) { return Math.abs(r.twa) >= mhuMinTwa && Math.abs(r.twa) <= mhuMaxTwa; });
     var port = mhuSet.filter(function (r) { return r.twa < 0; });
     var stbd = mhuSet.filter(function (r) { return r.twa >= 0; });
-    var twdPort = angleMean(port.map(function (r) { return r.twd; }).filter(function (v) { return v !== null; }));
-    var twdStbd = angleMean(stbd.map(function (r) { return r.twd; }).filter(function (v) { return v !== null; }));
+    var portTwds = port.map(function (r) { return r.twd; }).filter(function (v) { return v !== null; });
+    var stbdTwds = stbd.map(function (r) { return r.twd; }).filter(function (v) { return v !== null; });
+    var twdPort = angleMean(portTwds);
+    var twdStbd = angleMean(stbdTwds);
+    var twdPortStd = angleStd(portTwds);
+    var twdStbdStd = angleStd(stbdTwds);
     var mhuAdjustment = (twdPort !== null && twdStbd !== null) ? angleDiff(twdStbd, twdPort) / 2 : null;
     var currentTwaCorr = mean(mhuSet.map(function (r) { return r.twaCorr; }).filter(function (v) { return v !== null; }));
     var suggestedMhu = (currentTwaCorr !== null && mhuAdjustment !== null) ? currentTwaCorr + mhuAdjustment : null;
+
+    // Confidence — see the MHU_HIGH_* / MHU_LOW_* constants above for the reasoning.
+    var balance = (port.length && stbd.length) ? Math.min(port.length, stbd.length) / Math.max(port.length, stbd.length) : 0;
+    var worstStd = Math.max(twdPortStd === null ? 0 : twdPortStd, twdStbdStd === null ? 0 : twdStbdStd);
+    var minSamp = Math.min(port.length, stbd.length);
+    var mhuLevel;
+    if (suggestedMhu === null) {
+      mhuLevel = "low";
+    } else if (minSamp < MHU_LOW_SAMPLES || balance < MHU_LOW_BALANCE || worstStd > MHU_LOW_STD) {
+      mhuLevel = "low";
+    } else if (minSamp >= MHU_HIGH_SAMPLES && balance >= MHU_HIGH_BALANCE && worstStd <= MHU_HIGH_STD) {
+      mhuLevel = "high";
+    } else {
+      mhuLevel = "moderate";
+    }
+    var mhuReasons = [];
+    if (minSamp < MHU_HIGH_SAMPLES) mhuReasons.push("smaller tack has " + minSamp + " samples (High needs " + MHU_HIGH_SAMPLES + "+)");
+    if (balance < MHU_HIGH_BALANCE) mhuReasons.push("time split " + fmt(balance * 100, 0) + "/100 between tacks (High needs " + Math.round(MHU_HIGH_BALANCE * 100) + "/100+)");
+    if (worstStd > MHU_HIGH_STD) mhuReasons.push("TWD spread up to ±" + fmt(worstStd, 1) + "° within a tack (High needs ≤" + MHU_HIGH_STD + "°) — likely real shifts during the session, not just noise");
 
     // ---- BSP vs heel correction table (tide-corrected water speed minus logged BSP) ----
     var bspHeelTable = {};
@@ -316,8 +362,8 @@
     lastResults = {
       boat: currentBoat, hasTide: hasTide,
       steadyCount: steady.length, portCount: port.length, stbdCount: stbd.length,
-      twdPort: twdPort, twdStbd: twdStbd, mhuAdjustment: mhuAdjustment,
-      currentTwaCorr: currentTwaCorr, suggestedMhu: suggestedMhu,
+      twdPort: twdPort, twdStbd: twdStbd, twdPortStd: twdPortStd, twdStbdStd: twdStbdStd, mhuAdjustment: mhuAdjustment,
+      currentTwaCorr: currentTwaCorr, suggestedMhu: suggestedMhu, mhuLevel: mhuLevel, mhuReasons: mhuReasons,
       bspHeelTable: bspHeelTable, bspHeelCounts: bspHeelCounts,
       angleTable: angleTable, speedTable: speedTable
     };
@@ -337,9 +383,21 @@
       (res.hasTide ? " · tide-corrected using " + tideByBoat[currentBoat].length + " current reading(s)" : " · no tide data entered — boat-speed table uses raw SOG");
 
     // Headline answers
-    document.getElementById("mhuAnswer").innerHTML =
-      "<strong>" + fmt(res.suggestedMhu, 1) + "°</strong>" +
-      (res.currentTwaCorr !== null ? " <span class='pill'>currently " + fmt(res.currentTwaCorr, 1) + "°</span>" : "");
+    if (res.mhuLevel === "low") {
+      document.getElementById("mhuAnswer").innerHTML =
+        "<strong style='font-size:1.1rem;'>No change recommended</strong> " +
+        "<span class='pill pill--warn'>not enough clean data to trust an MHU adjustment</span>" +
+        (res.currentTwaCorr !== null ? "<div style='font-size:.95rem; color:var(--muted-2); margin-top:6px;'>Leave the TWA correction at " + fmt(res.currentTwaCorr, 1) + "° · would have computed " + fmt(res.suggestedMhu, 1) + "° — see detailed report for why that number isn't trusted.</div>" : "");
+    } else if (res.mhuLevel === "high") {
+      document.getElementById("mhuAnswer").innerHTML =
+        "<strong>" + fmt(res.suggestedMhu, 1) + "°</strong>" +
+        (res.currentTwaCorr !== null ? " <span class='pill'>currently " + fmt(res.currentTwaCorr, 1) + "°</span>" : "");
+    } else {
+      document.getElementById("mhuAnswer").innerHTML =
+        "<strong>" + fmt(res.suggestedMhu, 1) + "°</strong>" +
+        (res.currentTwaCorr !== null ? " <span class='pill'>currently " + fmt(res.currentTwaCorr, 1) + "°</span>" : "") +
+        " <span class='pill pill--warn'>moderate confidence — cross-check before applying</span>";
+    }
 
     renderGrid("bspHeelGrid", BSP_BINS, HEEL_BINS, function (r, c) {
       var v = res.bspHeelTable[r + "|" + c];
@@ -361,12 +419,15 @@
     detail += "<h3>MHU offset / TWA — method detail</h3>";
     detail += "<p class='import-step__hint'>H5000 manual Method 1: compare mean True Wind Direction on each tack — if they don't match, half the gap is added to the TWA/MHU correction, in the direction that brings both tacks' TWD to agree.</p>";
     detail += "<table class='compare-table'><tbody>" +
-      "<tr><td>Port-tack mean TWD</td><td>" + fmt(res.twdPort, 1) + "°</td></tr>" +
-      "<tr><td>Starboard-tack mean TWD</td><td>" + fmt(res.twdStbd, 1) + "°</td></tr>" +
+      "<tr><td>Port-tack mean TWD</td><td>" + fmt(res.twdPort, 1) + "° <span style='color:var(--muted-2);'>(±" + fmt(res.twdPortStd, 1) + "° spread, n=" + res.portCount + ")</span></td></tr>" +
+      "<tr><td>Starboard-tack mean TWD</td><td>" + fmt(res.twdStbd, 1) + "° <span style='color:var(--muted-2);'>(±" + fmt(res.twdStbdStd, 1) + "° spread, n=" + res.stbdCount + ")</span></td></tr>" +
       "<tr><td>Suggested adjustment</td><td>" + (res.mhuAdjustment >= 0 ? "+" : "") + fmt(res.mhuAdjustment, 2) + "°</td></tr>" +
       "<tr><td>Current TWA correction (from log)</td><td>" + fmt(res.currentTwaCorr, 2) + "°</td></tr>" +
-      "<tr><td>Suggested new value</td><td>" + fmt(res.suggestedMhu, 2) + "°</td></tr>" +
+      "<tr><td>Computed value</td><td>" + fmt(res.suggestedMhu, 2) + "°</td></tr>" +
+      "<tr><td>Confidence</td><td>" + ({ high: "<strong>High</strong> — apply as suggested", moderate: "<strong>Moderate</strong> — reasonable estimate, but verify against feel/logbook before entering it", low: "<strong>Low</strong> — not enough clean data, no change recommended" }[res.mhuLevel]) +
+      (res.mhuReasons.length ? "<div style='color:var(--muted-2); font-size:.86rem; margin-top:4px;'>" + res.mhuReasons.join("<br>") + "</div>" : "") + "</td></tr>" +
       "</tbody></table>";
+    detail += "<p class='import-step__hint' style='margin-top:8px;'>This is a whole-session port-vs-starboard average, same as the H5000 manual's Method 1 — it isn't a matched tack-by-tack manoeuvre analysis, so it's a cruder estimate than a professional calibration session. Checking it against two real reports for the same boat found the confidence level matters: a whole day's spread and sample count can look similar whether or not an adjustment was actually warranted, so treat anything below High as a hint to sanity-check, not a number to type straight into the H5000.</p>";
 
     detail += "<h3 style='margin-top:22px;'>BSP vs heel — sample counts</h3>";
     detail += gridHtml(BSP_BINS, HEEL_BINS, function (r, c) {
@@ -424,7 +485,14 @@
     if (!lastResults) return;
     var lines = ["RC44 Wind Calibrator — " + lastResults.boat + " — " + new Date().toISOString()];
     lines.push("");
-    lines.push("MHU / TWA correction, suggested," + fmt(lastResults.suggestedMhu, 2));
+    lines.push("MHU / TWA correction, confidence," + lastResults.mhuLevel);
+    if (lastResults.mhuLevel === "low") {
+      lines.push("MHU / TWA correction, no change recommended (insufficient clean data)");
+      lines.push("MHU / TWA correction, computed but not trusted," + fmt(lastResults.suggestedMhu, 2));
+    } else {
+      lines.push("MHU / TWA correction, suggested," + fmt(lastResults.suggestedMhu, 2));
+    }
+    if (lastResults.mhuReasons.length) lines.push("MHU / TWA notes," + lastResults.mhuReasons.join(" / ").replace(/,/g, ";"));
     lines.push("");
     lines.push("BSP vs Heel table (kn correction)");
     lines.push("bsp\\heel," + HEEL_BINS.join(","));
