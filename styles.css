@@ -10,6 +10,8 @@
   --accent-2: #61fff1;
   --artemis: #5aa9ff;
   --gemera: #ff9e5a;
+  --stiff: #ff5a5a;
+  --soft: #4be08a;
 }
 
 * { box-sizing: border-box; }
@@ -1036,3 +1038,88 @@ select:focus, input:focus, textarea:focus {
   text-align: right;
   padding-right: 12px;
 }
+
+/* ---- Live sync status (Main Battens) ---- */
+
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 18px;
+  flex-wrap: wrap;
+}
+
+.sync-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(71, 231, 219, .5);
+  flex-shrink: 0;
+  animation: sync-pulse 2.2s ease-out infinite;
+}
+
+.sync-status__dot--stale { background: var(--muted); animation: none; box-shadow: none; }
+
+@keyframes sync-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(71, 231, 219, .45); }
+  70% { box-shadow: 0 0 0 7px rgba(71, 231, 219, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(71, 231, 219, 0); }
+}
+
+.sync-status__text {
+  font-size: .8rem;
+  color: var(--muted-2);
+}
+
+.sync-status__text strong { color: var(--text); }
+
+.sync-status--flash .sync-status__text strong { color: var(--accent-2); }
+
+.sync-status__mark {
+  font-size: .76rem;
+  padding: 5px 12px;
+  min-height: auto;
+}
+
+.name-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .8rem;
+  color: var(--muted-2);
+}
+
+.name-field input {
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 5px 10px;
+  font-size: .82rem;
+  width: 120px;
+}
+
+.name-field input:focus { outline: none; border-color: var(--accent); }
+
+/* ---- EI stiffness colour scale ---- */
+
+.ei-cell {
+  border-radius: 8px;
+  transition: background-color .4s ease;
+}
+
+.ei-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: .78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ei-chip--stiff { color: #ffb3b3; }
+.ei-chip--soft { color: #a4f5c6; }
+.ei-chip--even { color: var(--muted-2); background: rgba(255,255,255,.04); }
