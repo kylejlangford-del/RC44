@@ -5,6 +5,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 import {
   getFirestore, doc, onSnapshot, setDoc, getDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import {
+  getAuth, signInAnonymously, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 (function () {
   "use strict";
@@ -38,20 +41,34 @@ import {
     try {
       var app = initializeApp(cfg);
       db = getFirestore(app);
-      liveMode = true;
+      var auth = getAuth(app);
+      // Firestore rules require request.auth != null (locked to this app, not open to the
+      // internet) — sign in anonymously first, invisibly, then start syncing.
+      onAuthStateChanged(auth, function (user) {
+        if (user) {
+          liveMode = true;
+          document.getElementById("configWarning").classList.add("is-hidden");
+          BOATS.forEach(function (boat) { subscribeBoat(boat); });
+        }
+      });
+      signInAnonymously(auth).catch(function (e) {
+        console.error("Anonymous sign-in failed, falling back to local-only mode:", e);
+        fallbackLocal();
+      });
     } catch (e) {
       console.error("Firebase init failed, falling back to local-only mode:", e);
-      liveMode = false;
+      fallbackLocal();
     }
+  } else {
+    fallbackLocal();
   }
 
-  if (!liveMode) {
+  function fallbackLocal() {
+    liveMode = false;
     document.getElementById("configWarning").classList.remove("is-hidden");
     var raw = safeGet(STORAGE_KEY);
     if (raw) { try { data = JSON.parse(raw); } catch (e) { /* ignore */ } }
     render();
-  } else {
-    BOATS.forEach(function (boat) { subscribeBoat(boat); });
   }
 
   function subscribeBoat(boat) {

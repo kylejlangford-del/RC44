@@ -6,10 +6,10 @@
  * Until REPLACE_ME values are filled in, Main Battens runs in local-only mode (no cross-device sync).
  */
 window.RC44_FIREBASE_CONFIG = {
-  apiKey: "REPLACE_ME",
-  authDomain: "REPLACE_ME.firebaseapp.com",
-  projectId: "REPLACE_ME",
-  storageBucket: "REPLACE_ME.appspot.com",
-  messagingSenderId: "REPLACE_ME",
-  appId: "REPLACE_ME"
+  apiKey: "AIzaSyC5uGF465drItP-A7JcrbPuJToM3dmPv60",
+  authDomain: "rc44-7bdf5.firebaseapp.com",
+  projectId: "rc44-7bdf5",
+  storageBucket: "rc44-7bdf5.firebasestorage.app",
+  messagingSenderId: "795498085995",
+  appId: "1:795498085995:web:531bb10ee7cf2e1ed77b2e"
 };
