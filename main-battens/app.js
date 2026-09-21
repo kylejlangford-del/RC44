@@ -21,6 +21,7 @@ import {
   var lastUpdated = { artemis: null, gemera: null }; // {date: Date|null, by: string}
   var liveMode = false;
   var db = null;
+  var currentView = "comparison";
 
   // ---------- Editor name ----------
 
@@ -68,7 +69,7 @@ import {
     document.getElementById("configWarning").classList.remove("is-hidden");
     var raw = safeGet(STORAGE_KEY);
     if (raw) { try { data = JSON.parse(raw); } catch (e) { /* ignore */ } }
-    render();
+    renderAll();
   }
 
   function subscribeBoat(boat) {
@@ -93,7 +94,7 @@ import {
           date: d.updatedAt && d.updatedAt.toDate ? d.updatedAt.toDate() : null,
           by: d.updatedBy || null
         };
-        render();
+        renderAll();
         renderSyncStatus(boat);
       }, function (err) {
         console.error("Sync error for " + boat, err);
@@ -104,7 +105,7 @@ import {
   }
 
   function saveBoat(boat) {
-    if (!liveMode) { persistLocal(); render(); return; }
+    if (!liveMode) { persistLocal(); renderAll(); return; }
     var ref = doc(db, "rc44-battens", boat);
     setDoc(ref, {
       boatLabel: data[boat].boatLabel,
@@ -175,7 +176,23 @@ import {
   // Keep the "Xm ago" labels fresh without waiting for the next snapshot.
   setInterval(function () { BOATS.forEach(renderSyncStatus); }, 30000);
 
-  // ---------- Core rendering ----------
+  // ---------- View toggle ----------
+
+  document.querySelectorAll(".view-toggle__btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".view-toggle__btn").forEach(function (b) { b.classList.toggle("is-active", b === btn); });
+      currentView = btn.dataset.view;
+      document.getElementById("viewComparison").classList.toggle("is-hidden", currentView !== "comparison");
+      document.getElementById("viewInventory").classList.toggle("is-hidden", currentView !== "inventory");
+      if (currentView === "inventory") renderFullInventory();
+    });
+  });
+
+  document.querySelectorAll("[data-add-batten]").forEach(function (btn) {
+    btn.addEventListener("click", function () { openManage(btn.dataset.addBatten, 1); });
+  });
+
+  // ---------- Core helpers ----------
 
   function findBatten(boat, pos, id) {
     var list = data[boat].positions[pos].battens;
@@ -186,6 +203,35 @@ import {
   function eiLabel(ei) {
     return (ei === null || ei === undefined || ei === "") ? "EI —" : "EI " + ei;
   }
+
+  function battenOptionLabel(b) {
+    var parts = [b.name, eiLabel(b.ei)];
+    if (b.serial) parts.push("#" + b.serial);
+    return parts.join(" · ");
+  }
+
+  function battenMetaLine(b) {
+    var parts = [eiLabel(b.ei)];
+    if (b.colour) parts.push(b.colour);
+    if (b.length) parts.push(b.length);
+    if (b.manufacturer) parts.push(b.manufacturer);
+    if (b.serial) parts.push("#" + b.serial);
+    return parts.join(" · ");
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function renderAll() {
+    render();
+    renderCompare();
+    if (currentView === "inventory") renderFullInventory();
+  }
+
+  // ---------- Comparison view (slot pickers) ----------
 
   function render() {
     BOATS.forEach(function (boat) {
@@ -212,7 +258,7 @@ import {
           if (b.decommissioned) return;
           var opt = document.createElement("option");
           opt.value = b.id;
-          opt.textContent = b.name + (b.serial ? " · #" + b.serial : "");
+          opt.textContent = battenOptionLabel(b);
           select.appendChild(opt);
         });
         select.value = slot.installed || "";
@@ -240,7 +286,6 @@ import {
       });
       renderSyncStatus(boat);
     });
-    renderCompare();
   }
 
   function renderEi(boat, pos) {
@@ -250,11 +295,11 @@ import {
     el.textContent = b ? eiLabel(b.ei) : "—";
   }
 
-  // ---------- Comparison table + EI colour scale ----------
+  // ---------- Comparison list (flex rows — never needs horizontal scroll) + EI colour scale ----------
 
   function renderCompare() {
-    var body = document.getElementById("compareBody");
-    body.innerHTML = "";
+    var list = document.getElementById("compareList");
+    list.innerHTML = "";
 
     // Auto-scale colour intensity to the biggest EI gap among the 6 positions right now.
     var deltas = {};
@@ -272,62 +317,229 @@ import {
     });
 
     POSITIONS.forEach(function (pos) {
-      var tr = document.createElement("tr");
-
-      var tdPos = document.createElement("td");
-      tdPos.textContent = "B" + pos;
-      tr.appendChild(tdPos);
-
       var d = deltas[pos];
-      var alpha = (d !== null && maxAbs > 0) ? (0.10 + 0.5 * Math.min(1, Math.abs(d) / maxAbs)) : 0;
+      var alpha = (d !== null && maxAbs > 0) ? (0.14 + 0.5 * Math.min(1, Math.abs(d) / maxAbs)) : 0;
+
+      var row = document.createElement("div");
+      row.className = "compare-row";
+
+      var head = document.createElement("div");
+      head.className = "compare-row__head";
+      head.textContent = "B" + pos;
+      row.appendChild(head);
 
       BOATS.forEach(function (boat) {
         var slot = data[boat].positions[pos];
         var b = slot.installed ? findBatten(boat, pos, slot.installed) : null;
-        var tdName = document.createElement("td");
-        tdName.textContent = b ? b.name : "—";
-        var tdEi = document.createElement("td");
-        tdEi.textContent = b ? eiLabel(b.ei) : "—";
-        tdEi.className = "ei-cell";
-        if (d !== null && d !== 0) {
-          var thisIsStiffer = (boat === "artemis" && d > 0) || (boat === "gemera" && d < 0);
-          tdEi.style.backgroundColor = thisIsStiffer
-            ? "rgba(255,90,90," + alpha + ")"
-            : "rgba(75,224,138," + alpha + ")";
+
+        var boatWrap = document.createElement("div");
+        boatWrap.className = "compare-row__boat";
+
+        var label = document.createElement("span");
+        label.className = "compare-row__boat-label";
+        label.textContent = boat === "artemis" ? "Artemis" : "Gemera";
+        boatWrap.appendChild(label);
+
+        var name = document.createElement("span");
+        name.className = "compare-row__name";
+        name.textContent = b ? b.name : "—";
+        boatWrap.appendChild(name);
+
+        if (b) {
+          var eiPill = document.createElement("span");
+          eiPill.className = "compare-row__ei";
+          eiPill.textContent = eiLabel(b.ei);
+          if (d !== null && d !== 0) {
+            var thisIsStiffer = (boat === "artemis" && d > 0) || (boat === "gemera" && d < 0);
+            eiPill.style.backgroundColor = thisIsStiffer ? "rgba(255,90,90," + alpha + ")" : "rgba(75,224,138," + alpha + ")";
+            eiPill.style.color = thisIsStiffer ? "#ffcfcf" : "#c8ffe0";
+          } else {
+            eiPill.style.color = "var(--muted-2)";
+          }
+          boatWrap.appendChild(eiPill);
         }
-        tr.appendChild(tdName);
-        tr.appendChild(tdEi);
+
+        row.appendChild(boatWrap);
       });
 
-      var tdDelta = document.createElement("td");
+      var result = document.createElement("div");
+      result.className = "compare-row__result";
       if (d === null) {
-        tdDelta.innerHTML = "<span class='ei-chip ei-chip--even'>—</span>";
+        result.innerHTML = "<span class='ei-chip ei-chip--even'>—</span>";
       } else if (d === 0) {
-        tdDelta.innerHTML = "<span class='ei-chip ei-chip--even'>Same stiffness</span>";
+        result.innerHTML = "<span class='ei-chip ei-chip--even'>Same stiffness</span>";
       } else {
         var stifferBoat = d > 0 ? "Artemis" : "Gemera";
-        var chipAlpha = 0.14 + 0.5 * Math.min(1, Math.abs(d) / maxAbs);
-        tdDelta.innerHTML =
+        var chipAlpha = 0.18 + 0.5 * Math.min(1, Math.abs(d) / maxAbs);
+        result.innerHTML =
           "<span class='ei-chip ei-chip--stiff' style='background: rgba(255,90,90," + chipAlpha + ")'>" +
           stifferBoat + " stiffer</span> " +
           "<span style='color: var(--muted-2); font-size:.78rem;'>(" + (d > 0 ? "+" : "") + d + " EI)</span>";
       }
-      tr.appendChild(tdDelta);
+      row.appendChild(result);
 
-      body.appendChild(tr);
+      list.appendChild(row);
     });
   }
 
-  // ---------- Manage-inventory dialog ----------
+  // ---------- Full inventory view ----------
+
+  function renderFullInventory() {
+    BOATS.forEach(function (boat) {
+      var container = document.getElementById("inv-" + boat);
+      container.innerHTML = "";
+      POSITIONS.forEach(function (pos) {
+        var slot = data[boat].positions[pos];
+        var block = document.createElement("div");
+        block.className = "inv-position";
+
+        var head = document.createElement("div");
+        head.className = "inv-position__head";
+        head.innerHTML = "<h3>B" + pos + "</h3>";
+        var addLink = document.createElement("button");
+        addLink.type = "button";
+        addLink.className = "text-link";
+        addLink.textContent = "+ Add to B" + pos;
+        addLink.addEventListener("click", function () { openManage(boat, pos); });
+        head.appendChild(addLink);
+        block.appendChild(head);
+
+        if (!slot.battens.length) {
+          var empty = document.createElement("p");
+          empty.className = "import-step__hint";
+          empty.textContent = "No battens recorded for this slot yet.";
+          block.appendChild(empty);
+        }
+
+        slot.battens.forEach(function (b) {
+          block.appendChild(buildBattenRow(boat, pos, b));
+        });
+
+        container.appendChild(block);
+      });
+    });
+  }
+
+  // Builds one batten row (view mode with Edit/Decommission, toggles to an inline edit form).
+  // Shared by the Full inventory view and the per-slot Manage dialog.
+  function buildBattenRow(boat, pos, b) {
+    var slot = data[boat].positions[pos];
+    var row = document.createElement("div");
+    row.className = "inv-row" + (slot.installed === b.id ? " inv-row--installed" : "") + (b.decommissioned ? " inv-row--decommissioned" : "");
+
+    function renderView() {
+      row.innerHTML = "";
+      row.className = "inv-row" + (slot.installed === b.id ? " inv-row--installed" : "") + (b.decommissioned ? " inv-row--decommissioned" : "");
+
+      var name = document.createElement("span");
+      name.className = "inv-row__name";
+      name.textContent = b.name + (slot.installed === b.id ? " (installed)" : "");
+      row.appendChild(name);
+
+      var meta = document.createElement("span");
+      meta.className = "inv-row__meta";
+      meta.textContent = battenMetaLine(b) + (b.notes ? " · " + b.notes : "");
+      row.appendChild(meta);
+
+      var actions = document.createElement("div");
+      actions.className = "inv-row__actions";
+
+      var editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "text-link";
+      editBtn.textContent = "Edit";
+      editBtn.addEventListener("click", renderEdit);
+      actions.appendChild(editBtn);
+
+      var toggleBtn = document.createElement("button");
+      toggleBtn.type = "button";
+      toggleBtn.className = "text-link";
+      toggleBtn.textContent = b.decommissioned ? "Restore" : "Decommission";
+      toggleBtn.addEventListener("click", function () {
+        b.decommissioned = !b.decommissioned;
+        if (b.decommissioned && slot.installed === b.id) slot.installed = null;
+        saveBoat(boat);
+        afterBattenChange();
+      });
+      actions.appendChild(toggleBtn);
+
+      row.appendChild(actions);
+    }
+
+    function renderEdit() {
+      row.innerHTML = "";
+      row.className = "inv-row";
+
+      var grid = document.createElement("div");
+      grid.className = "inv-edit-grid";
+      grid.innerHTML =
+        "<label><span>Batten label</span><input data-f='name' type='text' value='" + escapeHtml(b.name) + "'></label>" +
+        "<label><span>EI (stiffness)</span><input data-f='ei' type='number' step='any' value='" + (b.ei === null || b.ei === undefined ? "" : b.ei) + "'></label>" +
+        "<label><span>Colour</span><input data-f='colour' type='text' value='" + escapeHtml(b.colour || "") + "'></label>" +
+        "<label><span>Length</span><input data-f='length' type='text' value='" + escapeHtml(b.length || "") + "'></label>" +
+        "<label><span>Serial number</span><input data-f='serial' type='text' value='" + escapeHtml(b.serial || "") + "'></label>" +
+        "<label><span>Manufacturer</span><input data-f='manufacturer' type='text' value='" + escapeHtml(b.manufacturer || "") + "'></label>" +
+        "<label style='grid-column: 1 / -1;'><span>Notes</span><input data-f='notes' type='text' value='" + escapeHtml(b.notes || "") + "'></label>";
+      row.appendChild(grid);
+
+      var actions = document.createElement("div");
+      actions.className = "inv-edit-actions";
+      var saveBtn = document.createElement("button");
+      saveBtn.type = "button";
+      saveBtn.className = "ghost-button";
+      saveBtn.style.cssText = "font-size:.78rem; padding:7px 14px;";
+      saveBtn.textContent = "Save";
+      saveBtn.addEventListener("click", function () {
+        grid.querySelectorAll("[data-f]").forEach(function (inp) {
+          var f = inp.dataset.f;
+          var v = inp.value.trim();
+          if (f === "ei") { b.ei = v === "" ? null : Number(v); return; }
+          if (f === "name") { b.name = v; return; }
+          b[f] = v || undefined;
+        });
+        saveBoat(boat);
+        afterBattenChange();
+      });
+      actions.appendChild(saveBtn);
+
+      var cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.className = "text-link";
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.addEventListener("click", renderView);
+      actions.appendChild(cancelBtn);
+
+      row.appendChild(actions);
+    }
+
+    renderView();
+    return row;
+  }
+
+  // Called after any batten field / decommission change — refreshes every view that's
+  // showing this data (dropdowns, EI labels, comparison list, full inventory, manage dialog).
+  function afterBattenChange() {
+    render();
+    renderCompare();
+    if (currentView === "inventory") renderFullInventory();
+    if (!document.getElementById("manageDialog").classList.contains("is-hidden")) renderManageList();
+  }
+
+  // ---------- Manage-inventory dialog (per-slot list + add form) ----------
 
   var manageState = { boat: null, pos: null };
 
   function openManage(boat, pos) {
     manageState = { boat: boat, pos: pos };
-    document.getElementById("manageTitle").textContent =
-      data[boat].boatLabel + " · Batten " + pos + " inventory";
+    document.getElementById("newBattenPos").value = String(pos);
+    updateManageTitle();
     renderManageList();
     document.getElementById("manageDialog").classList.remove("is-hidden");
+  }
+
+  function updateManageTitle() {
+    document.getElementById("manageTitle").textContent =
+      data[manageState.boat].boatLabel + " · Batten " + manageState.pos + " inventory";
   }
 
   function closeManage() {
@@ -339,51 +551,36 @@ import {
     var slot = data[boat].positions[pos];
     var list = document.getElementById("manageList");
     list.innerHTML = "";
-
+    if (!slot.battens.length) {
+      var empty = document.createElement("p");
+      empty.className = "import-step__hint";
+      empty.textContent = "No battens recorded for this slot yet — add one below.";
+      list.appendChild(empty);
+      return;
+    }
     slot.battens.forEach(function (b) {
-      var row = document.createElement("div");
-      row.className = "manage-row" + (b.decommissioned ? " manage-row--decommissioned" : "");
-
-      var info = document.createElement("div");
-      info.className = "manage-row__info";
-      info.innerHTML = "<strong>" + escapeHtml(b.name) + "</strong>" +
-        "<span>" + eiLabel(b.ei) + (b.serial ? " · #" + escapeHtml(b.serial) : "") + "</span>" +
-        (b.notes ? "<span class='manage-row__notes'>" + escapeHtml(b.notes) + "</span>" : "");
-      row.appendChild(info);
-
-      var actions = document.createElement("div");
-      actions.className = "manage-row__actions";
-
-      var toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = "text-link";
-      toggle.textContent = b.decommissioned ? "Restore" : "Decommission";
-      toggle.addEventListener("click", function () {
-        b.decommissioned = !b.decommissioned;
-        if (b.decommissioned && slot.installed === b.id) slot.installed = null;
-        saveBoat(boat);
-        renderManageList();
-      });
-      actions.appendChild(toggle);
-
-      row.appendChild(actions);
-      list.appendChild(row);
+      list.appendChild(buildBattenRow(boat, pos, b));
     });
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-    });
-  }
+  document.getElementById("newBattenPos").addEventListener("change", function (e) {
+    if (!manageState.boat) return;
+    manageState.pos = Number(e.target.value);
+    updateManageTitle();
+    renderManageList();
+  });
 
   document.getElementById("manageClose").addEventListener("click", closeManage);
   document.getElementById("manageAddForm").addEventListener("submit", function (e) {
     e.preventDefault();
-    var boat = manageState.boat, pos = manageState.pos;
+    var boat = manageState.boat;
+    var pos = Number(document.getElementById("newBattenPos").value);
     var name = document.getElementById("newBattenName").value.trim();
     var eiVal = document.getElementById("newBattenEi").value.trim();
+    var colour = document.getElementById("newBattenColour").value.trim();
+    var length = document.getElementById("newBattenLength").value.trim();
     var serial = document.getElementById("newBattenSerial").value.trim();
+    var manufacturer = document.getElementById("newBattenManufacturer").value.trim();
     var notes = document.getElementById("newBattenNotes").value.trim();
     if (!name) return;
     var id = boat + "-" + pos + "-" + Date.now().toString(36);
@@ -391,12 +588,19 @@ import {
       id: id,
       name: name,
       ei: eiVal === "" ? null : Number(eiVal),
+      colour: colour || undefined,
+      length: length || undefined,
       serial: serial || undefined,
+      manufacturer: manufacturer || undefined,
       notes: notes || ""
     });
     saveBoat(boat);
+    manageState.pos = pos;
+    updateManageTitle();
     renderManageList();
+    if (currentView === "inventory") renderFullInventory();
     e.target.reset();
+    document.getElementById("newBattenPos").value = String(pos);
   });
 
   // ---------- Backup export ----------
@@ -418,5 +622,5 @@ import {
     URL.revokeObjectURL(url);
   });
 
-  if (!liveMode) render();
+  if (!liveMode) renderAll();
 })();
