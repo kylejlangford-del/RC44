@@ -505,8 +505,37 @@ select:focus, input:focus, textarea:focus {
 .boat-col__head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 16px;
+}
+
+.sail-toggle {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  margin-left: auto;
+}
+
+.sail-toggle:empty { display: none; }
+
+.sail-toggle__btn {
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--muted-2);
+  cursor: pointer;
+}
+
+.sail-toggle__btn.is-active {
+  background: var(--accent);
+  color: #04211f;
 }
 
 .boat-dot {

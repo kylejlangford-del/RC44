@@ -14,6 +14,7 @@ import {
 
   var STORAGE_KEY = "rc44-batten-data-v1"; // local-only fallback cache
   var NAME_KEY = "rc44-battens-editor-name";
+  var SAIL_KEY_PREFIX = "rc44-battens-sail-"; // per-boat, per-browser mainsail choice
   var POSITIONS = [1, 2, 3, 4, 5, 6];
   var BOATS = ["artemis", "gemera"];
 
@@ -22,6 +23,20 @@ import {
   var liveMode = false;
   var db = null;
   var currentView = "comparison";
+
+  // Which mainsail's inventory each boat is currently showing (Artemis: M12/M13, Gemera: M1/M2).
+  // This is a per-device UI choice (not synced) — each boat defaults to its first listed mainsail.
+  var currentSail = {};
+  BOATS.forEach(function (boat) {
+    var saved = safeGet(SAIL_KEY_PREFIX + boat);
+    var sails = data[boat].mainsails || [];
+    currentSail[boat] = (saved && sails.indexOf(saved) !== -1) ? saved : sails[0];
+  });
+
+  // The active position→slot map for a boat, under its currently selected mainsail.
+  function slotsFor(boat) {
+    return data[boat].bySail[currentSail[boat]];
+  }
 
   // ---------- Editor name ----------
 
@@ -79,7 +94,7 @@ import {
         // First run for this boat — seed Firestore from the bundled data.js.
         return setDoc(ref, {
           boatLabel: data[boat].boatLabel,
-          positions: data[boat].positions,
+          bySail: data[boat].bySail,
           updatedAt: serverTimestamp(),
           updatedBy: "Seed data"
         });
@@ -89,7 +104,7 @@ import {
         if (!snap.exists()) return;
         var d = snap.data();
         data[boat].boatLabel = d.boatLabel || data[boat].boatLabel;
-        data[boat].positions = d.positions || data[boat].positions;
+        data[boat].bySail = d.bySail || data[boat].bySail;
         lastUpdated[boat] = {
           date: d.updatedAt && d.updatedAt.toDate ? d.updatedAt.toDate() : null,
           by: d.updatedBy || null
@@ -109,7 +124,7 @@ import {
     var ref = doc(db, "rc44-battens", boat);
     setDoc(ref, {
       boatLabel: data[boat].boatLabel,
-      positions: data[boat].positions,
+      bySail: data[boat].bySail,
       updatedAt: serverTimestamp(),
       updatedBy: currentName()
     }).catch(function (e) {
@@ -192,10 +207,39 @@ import {
     btn.addEventListener("click", function () { openManage(btn.dataset.addBatten, 1); });
   });
 
+  // ---------- Mainsail toggle (per boat: Artemis M12/M13, Gemera M1/M2) ----------
+
+  function renderSailToggles() {
+    BOATS.forEach(function (boat) {
+      document.querySelectorAll('[data-sail-toggle="' + boat + '"]').forEach(function (wrap) {
+        wrap.innerHTML = "";
+        (data[boat].mainsails || []).forEach(function (sail) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "sail-toggle__btn" + (currentSail[boat] === sail ? " is-active" : "");
+          btn.textContent = sail;
+          btn.addEventListener("click", function () {
+            if (currentSail[boat] === sail) return;
+            currentSail[boat] = sail;
+            safeSet(SAIL_KEY_PREFIX + boat, sail);
+            renderSailToggles();
+            renderAll();
+          });
+          wrap.appendChild(btn);
+        });
+      });
+    });
+    var note = document.getElementById("compareSailNote");
+    if (note) {
+      note.textContent = "Comparing Artemis " + currentSail.artemis + " vs Gemera " + currentSail.gemera +
+        ". Green = softer, red = stiffer. Colour intensity is relative to the biggest EI gap among the 6 positions right now.";
+    }
+  }
+
   // ---------- Core helpers ----------
 
   function findBatten(boat, pos, id) {
-    var list = data[boat].positions[pos].battens;
+    var list = slotsFor(boat)[pos].battens;
     for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
     return null;
   }
@@ -226,6 +270,7 @@ import {
   }
 
   function renderAll() {
+    renderSailToggles();
     render();
     renderCompare();
     if (currentView === "inventory") renderFullInventory();
@@ -238,7 +283,7 @@ import {
       var col = document.getElementById("col-" + boat);
       col.innerHTML = "";
       POSITIONS.forEach(function (pos) {
-        var slot = data[boat].positions[pos];
+        var slot = slotsFor(boat)[pos];
         var wrap = document.createElement("div");
         wrap.className = "batten-slot";
 
@@ -289,7 +334,7 @@ import {
   }
 
   function renderEi(boat, pos) {
-    var slot = data[boat].positions[pos];
+    var slot = slotsFor(boat)[pos];
     var el = document.getElementById("ei-" + boat + "-" + pos);
     var b = slot.installed ? findBatten(boat, pos, slot.installed) : null;
     el.textContent = b ? eiLabel(b.ei) : "—";
@@ -305,8 +350,9 @@ import {
     var deltas = {};
     var maxAbs = 0;
     POSITIONS.forEach(function (pos) {
-      var a = data.artemis.positions[pos].installed ? findBatten("artemis", pos, data.artemis.positions[pos].installed) : null;
-      var g = data.gemera.positions[pos].installed ? findBatten("gemera", pos, data.gemera.positions[pos].installed) : null;
+      var artSlot = slotsFor("artemis")[pos], gemSlot = slotsFor("gemera")[pos];
+      var a = artSlot.installed ? findBatten("artemis", pos, artSlot.installed) : null;
+      var g = gemSlot.installed ? findBatten("gemera", pos, gemSlot.installed) : null;
       if (a && g && typeof a.ei === "number" && typeof g.ei === "number") {
         var d = a.ei - g.ei;
         deltas[pos] = d;
@@ -329,7 +375,7 @@ import {
       row.appendChild(head);
 
       BOATS.forEach(function (boat) {
-        var slot = data[boat].positions[pos];
+        var slot = slotsFor(boat)[pos];
         var b = slot.installed ? findBatten(boat, pos, slot.installed) : null;
 
         var boatWrap = document.createElement("div");
@@ -389,7 +435,7 @@ import {
       var container = document.getElementById("inv-" + boat);
       container.innerHTML = "";
       POSITIONS.forEach(function (pos) {
-        var slot = data[boat].positions[pos];
+        var slot = slotsFor(boat)[pos];
         var block = document.createElement("div");
         block.className = "inv-position";
 
@@ -423,7 +469,7 @@ import {
   // Builds one batten row (view mode with Edit/Decommission, toggles to an inline edit form).
   // Shared by the Full inventory view and the per-slot Manage dialog.
   function buildBattenRow(boat, pos, b) {
-    var slot = data[boat].positions[pos];
+    var slot = slotsFor(boat)[pos];
     var row = document.createElement("div");
     row.className = "inv-row" + (slot.installed === b.id ? " inv-row--installed" : "") + (b.decommissioned ? " inv-row--decommissioned" : "");
 
@@ -539,7 +585,7 @@ import {
 
   function updateManageTitle() {
     document.getElementById("manageTitle").textContent =
-      data[manageState.boat].boatLabel + " · Batten " + manageState.pos + " inventory";
+      data[manageState.boat].boatLabel + " " + currentSail[manageState.boat] + " · Batten " + manageState.pos + " inventory";
   }
 
   function closeManage() {
@@ -548,7 +594,7 @@ import {
 
   function renderManageList() {
     var boat = manageState.boat, pos = manageState.pos;
-    var slot = data[boat].positions[pos];
+    var slot = slotsFor(boat)[pos];
     var list = document.getElementById("manageList");
     list.innerHTML = "";
     if (!slot.battens.length) {
@@ -583,8 +629,8 @@ import {
     var manufacturer = document.getElementById("newBattenManufacturer").value.trim();
     var notes = document.getElementById("newBattenNotes").value.trim();
     if (!name) return;
-    var id = boat + "-" + pos + "-" + Date.now().toString(36);
-    data[boat].positions[pos].battens.push({
+    var id = boat + "-" + currentSail[boat] + "-" + pos + "-" + Date.now().toString(36);
+    slotsFor(boat)[pos].battens.push({
       id: id,
       name: name,
       ei: eiVal === "" ? null : Number(eiVal),

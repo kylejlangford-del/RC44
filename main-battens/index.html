@@ -55,6 +55,7 @@
             <div class="boat-col__head">
               <span class="boat-dot boat-dot--artemis"></span>
               <h2>Artemis</h2>
+              <div class="sail-toggle" data-sail-toggle="artemis"></div>
             </div>
             <div class="sync-status" id="sync-artemis">
               <span class="sync-status__dot"></span>
@@ -67,6 +68,7 @@
             <div class="boat-col__head">
               <span class="boat-dot boat-dot--gemera"></span>
               <h2>Gemera</h2>
+              <div class="sail-toggle" data-sail-toggle="gemera"></div>
             </div>
             <div class="sync-status" id="sync-gemera">
               <span class="sync-status__dot"></span>
@@ -79,7 +81,7 @@
 
         <section class="panel">
           <h2 style="margin-top:0;">Side-by-side comparison</h2>
-          <p class="import-step__hint">Green = softer, red = stiffer. Colour intensity is relative to the biggest EI gap among the 6 positions right now.</p>
+          <p class="import-step__hint" id="compareSailNote">Green = softer, red = stiffer. Colour intensity is relative to the biggest EI gap among the 6 positions right now.</p>
           <div id="compareList" class="compare-list"></div>
         </section>
       </div>
@@ -91,6 +93,7 @@
               <div style="display:flex; align-items:center; gap:10px;">
                 <span class="boat-dot boat-dot--artemis"></span>
                 <h2>Artemis</h2>
+                <div class="sail-toggle" data-sail-toggle="artemis"></div>
               </div>
               <button class="ghost-button" type="button" data-add-batten="artemis" style="font-size:.78rem; padding:7px 14px;">+ Add batten</button>
             </div>
@@ -101,6 +104,7 @@
               <div style="display:flex; align-items:center; gap:10px;">
                 <span class="boat-dot boat-dot--gemera"></span>
                 <h2>Gemera</h2>
+                <div class="sail-toggle" data-sail-toggle="gemera"></div>
               </div>
               <button class="ghost-button" type="button" data-add-batten="gemera" style="font-size:.78rem; padding:7px 14px;">+ Add batten</button>
             </div>
