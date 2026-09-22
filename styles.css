@@ -1108,10 +1108,18 @@ select:focus, input:focus, textarea:focus {
 
 .grid-suggest {
   font-size: .68rem;
-  color: #ff8a8a;
   margin-top: 2px;
   white-space: nowrap;
   text-align: center;
+}
+
+.grid-suggest--change {
+  color: #ff8a8a;
+  font-weight: 600;
+}
+
+.grid-suggest--muted {
+  color: var(--muted-2);
 }
 
 /* ---- Live sync status (Main Battens) ---- */

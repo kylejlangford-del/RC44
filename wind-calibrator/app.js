@@ -707,11 +707,24 @@ import {
         if (hasSug) withSuggestion++;
         if (needsChange) changes++;
         var tdClass = "grid-td" + (needsChange ? " grid-td--change" : "") + (!hasSug ? " grid-td--nodata" : "");
+        var suggestHtml = "";
+        if (hasSug) {
+          // Always shows what the log computed for this cell — not just when it differs from
+          // what's currently on the instrument — so the whole table is visible at a glance:
+          // red "→ X" where a change is needed, muted "✓ X" / "log: X" everywhere else.
+          if (needsChange) {
+            suggestHtml = "<div class='grid-suggest grid-suggest--change'>→ " + fmt(sug.value, opts.decimals) + "</div>";
+          } else if (hasCur) {
+            suggestHtml = "<div class='grid-suggest grid-suggest--muted'>✓ " + fmt(sug.value, opts.decimals) + "</div>";
+          } else {
+            suggestHtml = "<div class='grid-suggest grid-suggest--muted'>log: " + fmt(sug.value, opts.decimals) + "</div>";
+          }
+        }
         html += "<td class='" + tdClass + "'>" +
           "<input type='number' step='any' inputmode='decimal' class='grid-input' " +
           "data-table='" + opts.table + "' data-r='" + r + "' data-c='" + c + "' " +
           "value='" + (hasCur ? curVal : "") + "'>" +
-          (needsChange ? "<div class='grid-suggest'>→ " + fmt(sug.value, opts.decimals) + "</div>" : "") +
+          suggestHtml +
           "</td>";
       });
       html += "</tr>";
