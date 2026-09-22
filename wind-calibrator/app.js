@@ -1,3 +1,15 @@
+// RC44 Wind Calibrator — on-board calibration settings sync live across devices via Firebase
+// Firestore (same project as Main Battens). Falls back to local-only (this browser only) mode if
+// firebase-config.js hasn't been filled in yet.
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import {
+  getFirestore, doc, onSnapshot, setDoc, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import {
+  getAuth, signInAnonymously, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+
 (function () {
   "use strict";
 
@@ -26,7 +38,19 @@
   var rowsByBoat = { artemis: [], gemera: [] };
   var tideByBoat = { artemis: [], gemera: [] };
 
+  // Current on-board H5000 calibration settings (what's typed into the instrument right now),
+  // per boat — three flat maps keyed "row|col" matching the breakpoints below: twa (° correction,
+  // TWS x TWA), tws (kn correction, TWS x TWA), bsp (kn correction, boat speed x heel). Synced
+  // live across devices via Firestore, same as Main Battens, so it only needs entering once.
+  var onboardByBoat = {
+    artemis: { twa: {}, tws: {}, bsp: {} },
+    gemera: { twa: {}, tws: {}, bsp: {} }
+  };
+  var onboardLive = false;
+  var onboardDb = null;
+
   loadTide();
+  loadOnboardLocal();
 
   function loadTide() {
     try {
@@ -37,6 +61,80 @@
 
   function saveTide() {
     try { localStorage.setItem(STATE_PREFIX + currentBoat + "-tide", JSON.stringify(tideByBoat[currentBoat])); } catch (e) { /* ignore */ }
+  }
+
+  // ---------- On-board settings: Firebase sync (falls back to local-only) ----------
+
+  function loadOnboardLocal() {
+    ["artemis", "gemera"].forEach(function (boat) {
+      try {
+        var raw = localStorage.getItem(STATE_PREFIX + boat + "-onboard");
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          onboardByBoat[boat] = {
+            twa: parsed.twa || {}, tws: parsed.tws || {}, bsp: parsed.bsp || {}
+          };
+        }
+      } catch (e) { /* ignore */ }
+    });
+  }
+
+  function saveOnboardLocal(boat) {
+    try { localStorage.setItem(STATE_PREFIX + boat + "-onboard", JSON.stringify(onboardByBoat[boat])); } catch (e) { /* ignore */ }
+  }
+
+  var cfg = window.RC44_FIREBASE_CONFIG || {};
+  var configured = cfg.apiKey && cfg.apiKey.indexOf("REPLACE_ME") === -1;
+
+  if (configured) {
+    try {
+      var fbApp = initializeApp(cfg);
+      onboardDb = getFirestore(fbApp);
+      var auth = getAuth(fbApp);
+      onAuthStateChanged(auth, function (user) {
+        if (user) {
+          onboardLive = true;
+          var warn = document.getElementById("configWarning");
+          if (warn) warn.classList.add("is-hidden");
+          ["artemis", "gemera"].forEach(subscribeOnboard);
+        }
+      });
+      signInAnonymously(auth).catch(function (e) {
+        console.error("Anonymous sign-in failed, on-board settings stay local-only:", e);
+      });
+    } catch (e) {
+      console.error("Firebase init failed, on-board settings stay local-only:", e);
+    }
+  } else {
+    var warnEl = document.getElementById("configWarning");
+    if (warnEl) warnEl.classList.remove("is-hidden");
+  }
+
+  function subscribeOnboard(boat) {
+    var ref = doc(onboardDb, "rc44-onboard-settings", boat);
+    onSnapshot(ref, function (snap) {
+      if (snap.exists()) {
+        var d = snap.data();
+        onboardByBoat[boat] = { twa: d.twa || {}, tws: d.tws || {}, bsp: d.bsp || {} };
+      }
+      if (boat === currentBoat && lastResults) renderResults(lastResults);
+    }, function (err) { console.error("On-board settings sync error for " + boat, err); });
+  }
+
+  function saveOnboard(boat) {
+    if (!onboardLive) { saveOnboardLocal(boat); return; }
+    var ref = doc(onboardDb, "rc44-onboard-settings", boat);
+    setDoc(ref, {
+      twa: onboardByBoat[boat].twa,
+      tws: onboardByBoat[boat].tws,
+      bsp: onboardByBoat[boat].bsp,
+      updatedAt: serverTimestamp()
+    }).catch(function (e) { console.error("On-board settings save failed for " + boat, e); });
+  }
+
+  function setOnboardValue(boat, table, key, value) {
+    onboardByBoat[boat][table][key] = value;
+    saveOnboard(boat);
   }
 
   function splitCsvLine(line) { return line.split(","); }
@@ -335,18 +433,13 @@
 
   // ================= Analysis =================
 
-  // BSP-vs-heel table row (BSP) bins, per boat — matched to each boat's actual H5000
-  // table breakpoints where known. Gemera's real table uses an even 2.5kn step; Artemis's
-  // uses uneven ones (confirmed from a real calibration report), so a shared uniform grid
-  // would misrepresent Artemis's table. Heel (column) bins aren't known to differ, so they
-  // stay shared until seen otherwise.
-  var BSP_BINS_BY_BOAT = {
-    artemis: [0, 4, 5, 6, 7, 8, 9, 10, 12, 14, 18, 21],
-    gemera: [0, 2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20]
-  };
+  // Table breakpoints — matched exactly to the boat's own H5000 on-board calibration tables
+  // (confirmed from screenshots of the actual instrument: TWA-correction, TWS-correction and
+  // boat-speed-vs-heel tables). Both boats run the same H5000 table layout.
+  var BSP_BINS = [2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20];
   var HEEL_BINS = [-30, -25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30];
-  var TWS_BINS = [0, 1, 5, 10, 15, 20, 25, 30];
-  var TWA_BINS = [0, 30, 50, 90, 140, 160, 180];
+  var TWS_BINS = [1, 5, 10, 15, 20, 25, 30];
+  var TWA_BINS = [0, 30, 50, 90, 140, 150, 160, 180];
 
   // MHU confidence: a whole-session port-vs-starboard TWD average (H5000 manual Method 1)
   // is a cruder estimate than a professional's matched tack-by-tack manoeuvre analysis, and
@@ -411,7 +504,7 @@
     if (worstStd > MHU_HIGH_STD) mhuReasons.push("TWD spread up to ±" + fmt(worstStd, 1) + "° within a tack (High needs ≤" + MHU_HIGH_STD + "°) — likely real shifts during the session, not just noise");
 
     // ---- BSP vs heel correction table (tide-corrected water speed minus logged BSP) ----
-    var bspBins = BSP_BINS_BY_BOAT[currentBoat] || BSP_BINS_BY_BOAT.gemera;
+    var bspBins = BSP_BINS;
     var bspHeelTable = {};
     var bspHeelCounts = {};
     steady.forEach(function (r) {
@@ -520,20 +613,36 @@
         " <span class='pill pill--warn'>moderate confidence — cross-check before applying</span>";
     }
 
-    renderGrid("bspHeelGrid", res.bspBins, HEEL_BINS, function (r, c) {
-      var v = res.bspHeelTable[r + "|" + c];
-      return v === undefined ? null : v;
-    }, function (v) { return fmt(v, 2); }, "kn correction — row = BSP (kn), col = heel (° positive = port tack)" + (res.boat === "artemis" ? " · Artemis's own H5000 bin breakpoints" : ""));
+    renderCompareGrid({
+      containerId: "twaGrid", summaryId: "twaSummary", boat: res.boat, table: "twa",
+      rows: TWS_BINS, cols: TWA_BINS, tol: 0.3, decimals: 1, unit: "°",
+      caption: "row = TWS (kn), col = TWA (°) — matches the H5000's TWA correction table",
+      getSuggested: function (r, c) {
+        var e = res.angleTable[r + "|" + c];
+        return e ? { value: e.suggested, n: e.n } : { value: null, n: 0 };
+      }
+    });
 
-    renderGrid("angleGrid", TWS_BINS, TWA_BINS, function (r, c) {
-      var e = res.angleTable[r + "|" + c];
-      return e ? e.suggested : null;
-    }, function (v) { return fmt(v, 1); }, "° TWA correction — row = TWS (kn), col = |TWA| (°)");
+    renderCompareGrid({
+      containerId: "twsGrid", summaryId: "twsSummary", boat: res.boat, table: "tws",
+      rows: TWS_BINS, cols: TWA_BINS, tol: 0.05, decimals: 2, unit: "kn",
+      caption: "row = TWS (kn), col = TWA (°) — matches the H5000's TWS correction table · reaching (90°) used as reference",
+      getSuggested: function (r, c) {
+        var e = res.speedTable[r + "|" + c];
+        return e ? { value: e.suggested, n: e.n } : { value: null, n: 0 };
+      }
+    });
 
-    renderGrid("speedGrid", TWS_BINS, TWA_BINS, function (r, c) {
-      var e = res.speedTable[r + "|" + c];
-      return e ? e.suggested : null;
-    }, function (v) { return fmt(v, 2); }, "kn TWS correction — row = TWS (kn), col = |TWA| (°), reaching (90°) used as reference");
+    renderCompareGrid({
+      containerId: "bspGrid", summaryId: "bspSummary", boat: res.boat, table: "bsp",
+      rows: res.bspBins, cols: HEEL_BINS, tol: 0.05, decimals: 2, unit: "kn",
+      caption: "row = boat speed (kn), col = heel (° · negative = port heel, positive = starboard)",
+      getSuggested: function (r, c) {
+        var v = res.bspHeelTable[r + "|" + c];
+        var n = res.bspHeelCounts[r + "|" + c] || 0;
+        return { value: v === undefined ? null : v, n: n };
+      }
+    });
 
     // Detailed report
     var detail = "";
@@ -570,6 +679,66 @@
     document.getElementById("detailBody").innerHTML = detail;
   }
 
+  // Minimum samples in a cell before its computed suggestion is trusted enough to flag a change —
+  // below this it's treated the same as "no data yet" (shown dim, never highlighted red), same
+  // spirit as the MHU confidence tiers above.
+  var CELL_MIN_SAMPLES = 5;
+
+  // Renders one on-board calibration table as a single grid: editable inputs holding what's
+  // currently set on the H5000 (synced live across devices), with any cell where the log's
+  // computed suggestion differs from that current value highlighted red and showing the new
+  // number underneath — so the grid IS the report the user asked for, not a separate readout.
+  function renderCompareGrid(opts) {
+    var current = onboardByBoat[opts.boat][opts.table];
+    var withSuggestion = 0, changes = 0;
+    var html = "<p class='import-step__hint'>" + opts.caption + "</p>";
+    html += "<table class='compare-table grid-table'><thead><tr><th></th>";
+    opts.cols.forEach(function (c) { html += "<th>" + c + "</th>"; });
+    html += "</tr></thead><tbody>";
+    opts.rows.forEach(function (r) {
+      html += "<tr><th>" + r + "</th>";
+      opts.cols.forEach(function (c) {
+        var key = r + "|" + c;
+        var curVal = current[key];
+        var hasCur = curVal !== undefined && curVal !== null && curVal !== "";
+        var sug = opts.getSuggested(r, c);
+        var hasSug = sug && sug.value !== null && sug.n >= CELL_MIN_SAMPLES;
+        var needsChange = hasCur && hasSug && Math.abs(sug.value - curVal) > opts.tol;
+        if (hasSug) withSuggestion++;
+        if (needsChange) changes++;
+        var tdClass = "grid-td" + (needsChange ? " grid-td--change" : "") + (!hasSug ? " grid-td--nodata" : "");
+        html += "<td class='" + tdClass + "'>" +
+          "<input type='number' step='any' inputmode='decimal' class='grid-input' " +
+          "data-table='" + opts.table + "' data-r='" + r + "' data-c='" + c + "' " +
+          "value='" + (hasCur ? curVal : "") + "'>" +
+          (needsChange ? "<div class='grid-suggest'>→ " + fmt(sug.value, opts.decimals) + "</div>" : "") +
+          "</td>";
+      });
+      html += "</tr>";
+    });
+    html += "</tbody></table>";
+
+    var container = document.getElementById(opts.containerId);
+    container.innerHTML = html;
+    container.querySelectorAll(".grid-input").forEach(function (inp) {
+      inp.addEventListener("change", function () {
+        var key = inp.dataset.r + "|" + inp.dataset.c;
+        var v = inp.value.trim();
+        setOnboardValue(opts.boat, opts.table, key, v === "" ? null : Number(v));
+        renderCompareGrid(opts); // re-render this grid immediately so the highlight updates live
+      });
+    });
+
+    var summaryEl = document.getElementById(opts.summaryId);
+    if (withSuggestion === 0) {
+      summaryEl.textContent = "No data yet from this log for this table.";
+    } else if (changes === 0) {
+      summaryEl.textContent = "No changes — current settings match the log.";
+    } else {
+      summaryEl.textContent = changes + " cell" + (changes === 1 ? "" : "s") + " need" + (changes === 1 ? "s" : "") + " updating (highlighted below).";
+    }
+  }
+
   function gridHtml(rows, cols, getVal, caption) {
     var html = "<p class='import-step__hint'>" + caption + "</p>";
     html += "<table class='compare-table grid-table'><thead><tr><th></th>";
@@ -585,14 +754,6 @@
     });
     html += "</tbody></table>";
     return html;
-  }
-
-  function renderGrid(elId, rows, cols, getVal, fmtFn, caption) {
-    document.getElementById(elId).innerHTML = "<p class='import-step__hint'>" + caption + "</p>" +
-      gridHtml(rows, cols, function (r, c) {
-        var v = getVal(r, c);
-        return v === null || v === undefined ? "" : fmtFn(v);
-      }, "");
   }
 
   document.getElementById("detailToggle").addEventListener("click", function () {

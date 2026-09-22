@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#07111d" />
   <title>Wind Calibrator · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20260922b" />
+  <link rel="stylesheet" href="../styles.css?v=20260922c" />
 </head>
 <body>
   <div class="bg-glow bg-glow--one"></div>
@@ -76,6 +76,12 @@
         <button id="analyzeBtn" class="ghost-button" type="button" disabled style="margin-top:16px;">Run analysis</button>
       </section>
 
+      <div id="configWarning" class="panel is-hidden" style="margin-bottom:24px; border-color: rgba(255,158,90,.4);">
+        <span style="color:#ffcaa0; font-size:.86rem;">
+          Live sync isn't configured yet — the on-board settings tables below stay in this browser only.
+        </span>
+      </div>
+
       <section id="resultsPanel" class="is-hidden">
         <div class="section-kicker">Answers — <span id="resultsBoat"></span></div>
         <p id="sampleCounts" class="import-step__hint" style="margin-bottom:20px;"></p>
@@ -85,19 +91,30 @@
           <p id="mhuAnswer" style="font-size:1.6rem;"></p>
         </div>
 
+        <p class="import-step__hint" style="margin-bottom:16px;">
+          The three tables below match the H5000's own on-board calibration tables. Enter what's
+          currently set on the instrument — it syncs across devices, so it only needs entering once
+          and stays up to date as you adjust it on the water. Any cell where the log suggests a
+          different value is highlighted red with the new number; a table with no red cells needs
+          <strong>no changes</strong>.
+        </p>
+
+        <div class="panel" style="margin-bottom:20px;">
+          <h2 style="margin-top:0;">TWA correction</h2>
+          <p id="twaSummary" class="import-step__hint"></p>
+          <div id="twaGrid"></div>
+        </div>
+
+        <div class="panel" style="margin-bottom:20px;">
+          <h2 style="margin-top:0;">TWS correction</h2>
+          <p id="twsSummary" class="import-step__hint"></p>
+          <div id="twsGrid"></div>
+        </div>
+
         <div class="panel" style="margin-bottom:20px;">
           <h2 style="margin-top:0;">Boat speed vs heel</h2>
-          <div id="bspHeelGrid"></div>
-        </div>
-
-        <div class="panel" style="margin-bottom:20px;">
-          <h2 style="margin-top:0;">Upwash angle</h2>
-          <div id="angleGrid"></div>
-        </div>
-
-        <div class="panel" style="margin-bottom:20px;">
-          <h2 style="margin-top:0;">Upwash speed</h2>
-          <div id="speedGrid"></div>
+          <p id="bspSummary" class="import-step__hint"></p>
+          <div id="bspGrid"></div>
         </div>
 
         <button id="detailToggle" class="text-link" type="button">Show detailed report ▾</button>
@@ -108,8 +125,9 @@
     </div>
   </main>
 
-  <script src="../vendor/jszip.min.js?v=20260922b"></script>
-  <script src="../vendor/pako_inflate.min.js?v=20260922b"></script>
-  <script src="./app.js?v=20260922b"></script>
+  <script src="../main-battens/firebase-config.js?v=20260922c"></script>
+  <script src="../vendor/jszip.min.js?v=20260922c"></script>
+  <script src="../vendor/pako_inflate.min.js?v=20260922c"></script>
+  <script type="module" src="./app.js?v=20260922c"></script>
 </body>
 </html>

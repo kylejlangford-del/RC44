@@ -1070,6 +1070,50 @@ select:focus, input:focus, textarea:focus {
   padding-right: 12px;
 }
 
+/* ---- Wind Calibrator: editable on-board settings grid with change highlighting ---- */
+
+.grid-td {
+  padding: 4px 5px !important;
+  vertical-align: top;
+}
+
+.grid-input {
+  width: 52px;
+  font-size: .78rem;
+  padding: 4px 5px;
+  border-radius: 6px;
+  border: 1px solid var(--line, rgba(255,255,255,.14));
+  background: rgba(255,255,255,.04);
+  color: var(--text);
+  text-align: center;
+}
+
+.grid-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.grid-td--nodata .grid-input {
+  opacity: .55;
+}
+
+.grid-td--change {
+  background: rgba(255, 90, 90, .14);
+  border-radius: 8px;
+}
+
+.grid-td--change .grid-input {
+  border-color: rgba(255, 90, 90, .6);
+}
+
+.grid-suggest {
+  font-size: .68rem;
+  color: #ff8a8a;
+  margin-top: 2px;
+  white-space: nowrap;
+  text-align: center;
+}
+
 /* ---- Live sync status (Main Battens) ---- */
 
 .sync-status {
