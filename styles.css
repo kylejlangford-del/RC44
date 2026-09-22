@@ -1509,10 +1509,23 @@ select:focus, input:focus, textarea:focus {
   background: rgba(71,231,219,.08);
 }
 
+.xover-ruler-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 10px;
+}
+
+.xover-ruler-row__spacer {
+  flex: 0 0 132px;
+  width: 132px;
+}
+
 .xover-ruler {
   position: relative;
+  flex: 1 1 auto;
   height: 20px;
-  margin: 0 0 6px;
+  margin: 0;
   font-size: .68rem;
   color: var(--muted);
 }
@@ -1668,4 +1681,5 @@ select:focus, input:focus, textarea:focus {
   .xover-row { flex-wrap: wrap; gap: 4px; }
   .xover-row__label { flex-basis: 100%; width: auto; }
   .xover-track { flex-basis: 100%; }
+  .xover-ruler-row__spacer { display: none; }
 }

@@ -60,9 +60,9 @@ import {
   // Crossover sub-tabs other than "battens": each is a free-form named list (like chocks) with
   // its own TWS range per item, per position.
   var CUSTOM_KINDS = {
-    chocks: { label: "Chocks", placeholder: "Chock name, e.g. 1x thin port", addLabel: "+ Add chock", noun: "chocks" },
-    rake: { label: "Rake", placeholder: "Rake setting, e.g. 3200mm", addLabel: "+ Add rake setting", noun: "rake settings" },
-    rigsetup: { label: "Rig set up", placeholder: "Rig set up, e.g. 22 on the gauge", addLabel: "+ Add rig set up", noun: "rig set-ups" },
+    chocks: { label: "Chocks", placeholder: "Chock size, e.g. chock size mm", addLabel: "+ Add chock", noun: "chocks" },
+    rake: { label: "Rake", placeholder: "Rake, e.g. X deg", addLabel: "+ Add rake setting", noun: "rake settings" },
+    rigsetup: { label: "Rig set up", placeholder: "Rig set up, e.g. Base -1", addLabel: "+ Add rig set up", noun: "rig set-ups" },
     liftoff: { label: "Lift off (bar)", placeholder: "Lift off, e.g. 24 bar", addLabel: "+ Add lift off", noun: "lift-off settings" }
   };
 
@@ -1010,17 +1010,6 @@ import {
     var sail = currentSail[boat], pos = currentXoverPos[boat] || 1, kind = xoverKind[boat] || "battens";
     var slot = ensureXoverPos(boat, sail, pos);
 
-    var ruler = document.createElement("div");
-    ruler.className = "xover-ruler";
-    [4, 8, 12, 16, 20, 25].forEach(function (t) {
-      var tick = document.createElement("span");
-      tick.className = "xover-ruler__tick";
-      tick.style.left = toPercent(t) + "%";
-      tick.textContent = t + "kt";
-      ruler.appendChild(tick);
-    });
-    container.appendChild(ruler);
-
     var custom = CUSTOM_KINDS[kind]; // undefined for "battens"
 
     if (custom) {
@@ -1047,6 +1036,25 @@ import {
       });
       container.appendChild(addForm);
     }
+
+    // Ruler sits below the data-entry box and lines up with the draggable bars, not the
+    // row labels, so it gets the same spacer + flex layout as an .xover-row.
+    var rulerRow = document.createElement("div");
+    rulerRow.className = "xover-ruler-row";
+    var rulerSpacer = document.createElement("div");
+    rulerSpacer.className = "xover-ruler-row__spacer";
+    rulerRow.appendChild(rulerSpacer);
+    var ruler = document.createElement("div");
+    ruler.className = "xover-ruler";
+    [4, 8, 12, 16, 20, 25].forEach(function (t) {
+      var tick = document.createElement("span");
+      tick.className = "xover-ruler__tick";
+      tick.style.left = toPercent(t) + "%";
+      tick.textContent = t + "kt";
+      ruler.appendChild(tick);
+    });
+    rulerRow.appendChild(ruler);
+    container.appendChild(rulerRow);
 
     var chart = document.createElement("div");
     chart.className = "xover-chart";
