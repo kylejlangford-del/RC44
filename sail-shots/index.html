@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#07111d" />
   <title>Sail Shots · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20260923c" />
+  <link rel="stylesheet" href="../styles.css?v=20260923d" />
 </head>
 <body>
   <div class="bg-glow bg-glow--one"></div>
@@ -74,21 +74,18 @@
 
       <section class="panel" style="margin-bottom:32px;">
         <h2 style="margin-top:0;">Compare</h2>
-        <div id="compareData"></div>
 
-        <div class="section-kicker" style="margin-top:28px;">All scans</div>
-        <p class="import-step__hint">Every scan matching the filters above, any two boats — tap a thumbnail for a quick look, drag it into a box below to compare, or tap its pencil to edit. They drive the data above, the charts and the overlay further down.</p>
+        <div class="section-kicker">All scans</div>
+        <p class="import-step__hint">Every scan matching the filters above, any boat — tap a thumbnail for a quick look, drag it into a box below to compare, or tap its pencil to edit. They drive the data, charts and overlay below.</p>
         <div id="catalog-all" class="thumb-grid thumb-grid--wide"></div>
 
-        <div class="compare-drop-grid compare-drop-grid--sm" style="margin-top:16px;">
-          <div class="compare-drop compare-drop--sm" id="compareLeftBox" data-slot="left">
-            <div class="compare-drop__empty">Drag a photo here</div>
-          </div>
-          <div class="compare-drop compare-drop--sm" id="compareRightBox" data-slot="right">
-            <div class="compare-drop__empty">Drag a photo here</div>
-          </div>
+        <div id="compareDropGrid" class="compare-drop-grid compare-drop-grid--sm" style="margin-top:16px;"></div>
+        <div style="margin-top:10px;">
+          <button type="button" id="compareAddSlotBtn" class="text-link">+ Add another scan</button>
         </div>
-        <p class="import-step__hint" style="font-size:.72rem; margin-top:8px;">Left box vs. right box — drag any two thumbnails above to compare them.</p>
+        <p class="import-step__hint" style="font-size:.72rem; margin-top:8px;">Drag any scans above into the boxes to compare them — two by default, add more with the link above.</p>
+
+        <div id="compareData" style="margin-top:28px;"></div>
       </section>
 
       <section class="panel">
@@ -207,6 +204,6 @@
   <script src="./data.js?v=20260922a"></script>
   <script src="../main-battens/firebase-config.js?v=20260922e"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script type="module" src="./app.js?v=20260923e"></script>
+  <script type="module" src="./app.js?v=20260923f"></script>
 </body>
 </html>

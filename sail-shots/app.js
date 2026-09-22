@@ -24,7 +24,12 @@ import {
   var scans = JSON.parse(JSON.stringify(window.SAIL_SHOTS || []));
   var liveMode = false;
   var db = null, storage = null;
-  var compare = { left: null, right: null }; // any two scans, regardless of boat — feeds the data, charts + overlay
+  // Any number of scans, regardless of boat — feeds the data table, charts and (for the first two
+  // filled slots) the overlay. Each entry is a scanId or null for an empty box. Starts with two
+  // boxes by default; "+ Add another scan" pushes more slots on demand.
+  var compare = { slots: [null, null] };
+  var SLOT_COLORS = ["var(--artemis)", "var(--gemera)", "var(--stiff)", "var(--soft)", "var(--accent)", "var(--accent-2)"];
+  function slotColor(i) { return SLOT_COLORS[i % SLOT_COLORS.length]; }
   var sailFilter = ""; // "" = all sails; else "Main" | "G1" | "J2" | "J3"
 
   // Existing scans predate the Main/G1/J2/J3 split — they're all mainsail battens, so tag
@@ -304,7 +309,7 @@ import {
     matches.forEach(function (s) {
       var card = document.createElement("button");
       card.type = "button";
-      var isActive = s.id === compare.left || s.id === compare.right;
+      var isActive = compare.slots.indexOf(s.id) !== -1;
       card.className = "thumb" + (isActive ? " thumb--active" : "");
       card.draggable = true;
       var dotClass = s.boat === "gemera" ? "boat-dot--gemera" : "boat-dot--artemis";
@@ -333,40 +338,14 @@ import {
     });
   }
 
-  // ---------- Compare (drag-and-drop, any two scans regardless of boat) ----------
+  // ---------- Compare (drag-and-drop, any number of scans regardless of boat) ----------
+  // The grid is rebuilt from compare.slots each time a box changes — the slot count is dynamic
+  // ("+ Add another scan"), so the boxes can't be static HTML the way a fixed left/right pair was.
 
-  function renderCompareBox(slot) {
-    var box = document.getElementById("compare" + (slot === "left" ? "Left" : "Right") + "Box");
-    var scan = compare[slot] ? findScan(compare[slot]) : null;
-    if (!scan) {
-      box.innerHTML = "<div class='compare-drop__empty'>Drag a photo here</div>";
-      return;
-    }
-    box.innerHTML =
-      "<button type='button' class='compare-drop__clear' title='Clear'>&times;</button>" +
-      "<div class='compare-drop__filled'><img src='" + scan.file + "' alt=''>" +
-      "<div class='compare-drop__caption'>" + BOAT_LABEL[scan.boat] + " · " + scanCaption(scan) + "</div></div>";
-    box.querySelector(".compare-drop__clear").addEventListener("click", function () {
-      compare[slot] = null;
-      updateCompareSlot(slot);
-    });
-  }
+  var MIN_COMPARE_SLOTS = 2;
+  var MAX_COMPARE_SLOTS = 8;
 
-  function renderCompareBoxes() {
-    renderCompareBox("left");
-    renderCompareBox("right");
-  }
-
-  function updateCompareSlot(slot) {
-    renderCompareBox(slot);
-    renderCompareData();
-    renderOverlay();
-    renderMetricCharts();
-    renderCatalogAll(); // refresh thumb--active highlighting on whichever scan(s) are in Compare
-  }
-
-  ["left", "right"].forEach(function (slot) {
-    var box = document.getElementById("compare" + (slot === "left" ? "Left" : "Right") + "Box");
+  function wireCompareDropBox(box, index) {
     box.addEventListener("dragover", function (e) {
       e.preventDefault();
       e.dataTransfer.dropEffect = "copy";
@@ -378,9 +357,61 @@ import {
       box.classList.remove("is-dragover");
       var id = e.dataTransfer.getData("text/plain");
       if (!id || !findScan(id)) return;
-      compare[slot] = id;
-      updateCompareSlot(slot);
+      compare.slots[index] = id;
+      updateCompareSlots();
     });
+  }
+
+  function renderCompareBoxes() {
+    var grid = document.getElementById("compareDropGrid");
+    grid.innerHTML = "";
+    compare.slots.forEach(function (scanId, index) {
+      var scan = scanId ? findScan(scanId) : null;
+      var box = document.createElement("div");
+      box.className = "compare-drop compare-drop--sm";
+      box.dataset.slot = index;
+      var canRemoveBox = compare.slots.length > MIN_COMPARE_SLOTS;
+
+      if (!scan) {
+        box.innerHTML = (canRemoveBox ? "<button type='button' class='compare-drop__clear' title='Remove this box'>&times;</button>" : "") +
+          "<div class='compare-drop__empty'>Drag a photo here</div>";
+        if (canRemoveBox) {
+          box.querySelector(".compare-drop__clear").addEventListener("click", function () {
+            compare.slots.splice(index, 1);
+            updateCompareSlots();
+          });
+        }
+      } else {
+        box.style.borderColor = slotColor(index);
+        box.innerHTML =
+          "<button type='button' class='compare-drop__clear' title='" + (canRemoveBox ? "Remove this box" : "Clear") + "'>&times;</button>" +
+          "<div class='compare-drop__filled'><img src='" + scan.file + "' alt=''>" +
+          "<div class='compare-drop__caption'>" + BOAT_LABEL[scan.boat] + " · " + scanCaption(scan) + "</div></div>";
+        box.querySelector(".compare-drop__clear").addEventListener("click", function () {
+          if (canRemoveBox) compare.slots.splice(index, 1);
+          else compare.slots[index] = null;
+          updateCompareSlots();
+        });
+      }
+      wireCompareDropBox(box, index);
+      grid.appendChild(box);
+    });
+
+    document.getElementById("compareAddSlotBtn").classList.toggle("is-hidden", compare.slots.length >= MAX_COMPARE_SLOTS);
+  }
+
+  function updateCompareSlots() {
+    renderCompareBoxes();
+    renderCompareData();
+    renderOverlay();
+    renderMetricCharts();
+    renderCatalogAll(); // refresh thumb--active highlighting on whichever scan(s) are in Compare
+  }
+
+  document.getElementById("compareAddSlotBtn").addEventListener("click", function () {
+    if (compare.slots.length >= MAX_COMPARE_SLOTS) return;
+    compare.slots.push(null);
+    updateCompareSlots();
   });
 
   // ---------- Stage (compare data — both slots' fields aligned side by side) ----------
@@ -498,28 +529,39 @@ import {
     return "<th></th><th class='target-col'>Tgt</th>";
   }
 
+  // A short label for a compare column header — boat name, plus the time when more than one
+  // filled slot shares a boat (comparing several scans off the same boat is now possible with
+  // more than two slots, so the boat name alone can be ambiguous).
+  function slotHeaderLabel(b, allSlots) {
+    var boatLabel = BOAT_LABEL[b.scan.boat] || b.scan.boat;
+    var sameBoatCount = allSlots.filter(function (o) { return o.scan.boat === b.scan.boat; }).length;
+    if (sameBoatCount < 2) return boatLabel;
+    var time = b.scan.time ? b.scan.time.slice(0, 16).replace("T", " ") : "";
+    return boatLabel + (time ? " · " + time : "");
+  }
+
   function renderCompareData() {
     var container = document.getElementById("compareData");
-    var slots = ["left", "right"]
-      .map(function (slot) { return { slot: slot, scan: compare[slot] ? findScan(compare[slot]) : null }; })
+    var slots = compare.slots
+      .map(function (scanId, index) { return { index: index, scan: scanId ? findScan(scanId) : null }; })
       .filter(function (b) { return b.scan; });
 
     if (!slots.length) {
-      container.innerHTML = "<div class='scan-stage__empty'>Drag a scan into a Compare box below to see its details here.</div>";
+      container.innerHTML = "<div class='scan-stage__empty'>Drag a scan into a Compare box above to see its details here.</div>";
       return;
     }
 
     var photosHtml = "<div class='compare-detail-grid'>" + slots.map(function (b) {
       var dotClass = b.scan.boat === "gemera" ? "boat-dot--gemera" : "boat-dot--artemis";
       return "<div>" +
-        "<div class='split-col__head'><span class='boat-dot " + dotClass + "'></span><h2>" + (BOAT_LABEL[b.scan.boat] || b.scan.boat) + "</h2></div>" +
+        "<div class='split-col__head'><span class='boat-dot " + dotClass + "' style='background:" + slotColor(b.index) + ";'></span><h2>" + slotHeaderLabel(b, slots) + "</h2></div>" +
         "<div class='scan-stage'><img src='" + b.scan.file + "' alt='" + (BOAT_LABEL[b.scan.boat] || b.scan.boat) + " sail scan'></div>" +
-        "<button type='button' class='text-link compare-detail__calbtn' data-slot='" + b.slot + "' style='margin-top:10px;'>Set / edit mast alignment</button>" +
+        "<button type='button' class='text-link compare-detail__calbtn' data-index='" + b.index + "' style='margin-top:10px;'>Set / edit mast alignment</button>" +
         "</div>";
     }).join("") + "</div>";
 
     var dataHtml = "<table class='compare-table' style='margin-top:20px;'><thead><tr><th>Field</th>" +
-      slots.map(function (b) { return "<th>" + (BOAT_LABEL[b.scan.boat] || b.scan.boat) + "</th>"; }).join("") +
+      slots.map(function (b) { return "<th>" + slotHeaderLabel(b, slots) + "</th>"; }).join("") +
       "</tr></thead><tbody>" +
       FIELD_DEFS.map(function (f) {
         return "<tr><td>" + f.label + "</td>" + slots.map(function (b) { return "<td>" + f.get(b.scan) + "</td>"; }).join("") + "</tr>";
@@ -529,7 +571,7 @@ import {
     var camberHtml = "";
     if (slots.some(function (b) { return b.scan.camber && b.scan.camber.length; })) {
       var headRow1 = "<th rowspan='3'>Height</th>" + slots.map(function (b) {
-        return "<th colspan='" + (CAMBER_METRICS.length * 2) + "'>" + (BOAT_LABEL[b.scan.boat] || b.scan.boat) + "</th>";
+        return "<th colspan='" + (CAMBER_METRICS.length * 2) + "'>" + slotHeaderLabel(b, slots) + "</th>";
       }).join("");
       var headRow2 = slots.map(function () {
         return CAMBER_METRICS.map(function (m) { return camberMetricHeadHtml(m[1]); }).join("");
@@ -553,7 +595,8 @@ import {
     container.innerHTML = photosHtml + dataHtml + camberHtml;
     container.querySelectorAll(".compare-detail__calbtn").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        var scan = compare[btn.dataset.slot] ? findScan(compare[btn.dataset.slot]) : null;
+        var scanId = compare.slots[Number(btn.dataset.index)];
+        var scan = scanId ? findScan(scanId) : null;
         if (scan) openMastCalibrator(scan.id);
       });
     });
@@ -657,14 +700,18 @@ import {
   }
 
   function renderOverlay() {
-    var g = compare.left ? findScan(compare.left) : null; // base, underneath
-    var a = compare.right ? findScan(compare.right) : null; // overlay, on top
+    // The overlay is inherently a two-image comparison (base underneath, one overlay on top with
+    // an opacity slider), so with more than two Compare boxes filled it just uses the first two,
+    // in box order — the rest still drive the data table and charts above.
+    var filledIds = compare.slots.filter(function (id) { return id; });
+    var g = filledIds[0] ? findScan(filledIds[0]) : null; // base, underneath
+    var a = filledIds[1] ? findScan(filledIds[1]) : null; // overlay, on top
     var wrap = document.getElementById("overlayStage");
     var note = document.getElementById("overlayNote");
     overlayImgEl = null;
 
     if (!a || !g) {
-      wrap.innerHTML = "<div class='scan-stage__empty'>Drag a scan into both Compare boxes above to overlay them.</div>";
+      wrap.innerHTML = "<div class='scan-stage__empty'>Drag a scan into two Compare boxes above to overlay them.</div>";
       note.textContent = "";
       return;
     }
@@ -673,6 +720,7 @@ import {
     var stageW = wrap.clientWidth || 640;
     var stageH = 480;
     wrap.style.height = stageH + "px";
+    var extraNote = filledIds.length > 2 ? " Showing the first two of " + filledIds.length + " selected scans." : "";
 
     Promise.all([loadImage(g.file), loadImage(a.file)]).then(function (imgs) {
       var gImg = imgs[0], aImg = imgs[1];
@@ -735,7 +783,7 @@ import {
             var aty = q1.y - (m10 * p1.x + m11 * p1.y);
 
             overlayEl.style.transform = "matrix(" + m00 + "," + m10 + "," + m01 + "," + m11 + "," + atx + "," + aty + ")";
-            note.textContent = "Aligned on the mast + second axis — both scans are 2-axis calibrated.";
+            note.textContent = "Aligned on the mast + second axis — both scans are 2-axis calibrated." + extraNote;
             note.classList.remove("pill--warn");
             return;
           }
@@ -752,9 +800,9 @@ import {
         var ty = q1.y - s * (p1.x * sinT + p1.y * cosT);
 
         overlayEl.style.transform = "translate(" + tx + "px," + ty + "px) rotate(" + (theta * 180 / Math.PI) + "deg) scale(" + s + ")";
-        note.textContent = (g.mast2 || a.mast2)
+        note.textContent = ((g.mast2 || a.mast2)
           ? "Aligned on the mast — add a second axis on both scans for a truer fit on tricky angles."
-          : "Aligned on the mast — both scans are mast-calibrated.";
+          : "Aligned on the mast — both scans are mast-calibrated.") + extraNote;
         note.classList.remove("pill--warn");
       } else {
         // No calibration on one or both — best-effort contain-fit, uncorrected.
@@ -762,8 +810,8 @@ import {
         overlayEl.style.transform = "translate(" + ((stageW - aImg.naturalWidth * oScale) / 2) + "px," +
           ((stageH - aImg.naturalHeight * oScale) / 2) + "px) scale(" + oScale + ")";
         note.textContent = "Not aligned — set mast alignment on " +
-          (!g.mast && !a.mast ? "both scans" : (!g.mast ? "the left scan" : "the right scan")) +
-          " for an accurate overlay.";
+          (!g.mast && !a.mast ? "both scans" : (!g.mast ? "the first scan" : "the second scan")) +
+          " for an accurate overlay." + extraNote;
         note.classList.add("pill--warn");
       }
     });
@@ -883,12 +931,10 @@ import {
     return svg;
   }
 
-  var SLOT_COLOR = { left: "var(--artemis)", right: "var(--gemera)" };
-
   function renderMetricCharts() {
-    var slotsWithScan = ["left", "right"].map(function (slot) {
-      var scan = compare[slot] ? findScan(compare[slot]) : null;
-      return { slot: slot, scan: scan };
+    var slotsWithScan = compare.slots.map(function (scanId, index) {
+      var scan = scanId ? findScan(scanId) : null;
+      return { index: index, scan: scan };
     }).filter(function (b) { return b.scan && b.scan.camber && b.scan.camber.length; });
 
     METRIC_CHARTS.forEach(function (mc) {
@@ -904,7 +950,7 @@ import {
       var seriesList = slotsWithScan.map(function (b) {
         return {
           label: BOAT_LABEL[b.scan.boat] + " · " + (b.scan.time ? b.scan.time.slice(0, 16).replace("T", " ") : b.scan.id),
-          color: SLOT_COLOR[b.slot],
+          color: slotColor(b.index),
           points: b.scan.camber
             .filter(function (row) { return row[mc.key] !== null && row[mc.key] !== undefined; })
             .map(function (row) { return { h: row.height, v: row[mc.key] }; })
