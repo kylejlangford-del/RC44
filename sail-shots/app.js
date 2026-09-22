@@ -350,7 +350,7 @@ import {
 
   function updateCompareSlot(slot) {
     renderCompareBox(slot);
-    renderCompareDetail(slot);
+    renderCompareData();
     renderOverlay();
     renderMetricCharts();
   }
@@ -373,68 +373,89 @@ import {
     });
   });
 
-  // ---------- Stage (single-scan view + data) ----------
+  // ---------- Stage (compare data — both slots' fields aligned side by side) ----------
 
-  function cell(label, value) {
-    return "<div class='scan-data__cell'><span>" + label + "</span><strong>" + value + "</strong></div>";
-  }
+  // One row per field, one column per filled Compare slot — so the same field for both
+  // scans sits on the same line and is easy to read across, instead of two separate blocks
+  // you have to match up by eye.
+  var FIELD_DEFS = [
+    { label: "Event", get: function (s) { return s.event || "—"; } },
+    { label: "Time", get: function (s) { return s.time ? s.time.replace("T", " ") : "—"; } },
+    { label: "Batten", get: function (s) { return s.battenLabel || "—"; } },
+    { label: "Tack", get: function (s) { return s.tack || "—"; } },
+    { label: "TWS", get: function (s) { return (s.wind && s.wind.tws !== undefined && s.wind.tws !== null) ? s.wind.tws + " kn" : "—"; } },
+    { label: "TWA", get: function (s) { return (s.wind && s.wind.twa !== undefined && s.wind.twa !== null) ? s.wind.twa + "°" : "—"; } },
+    { label: "BSP", get: function (s) { return (s.boat_ && s.boat_.bsp !== undefined && s.boat_.bsp !== null) ? s.boat_.bsp + " kn" : "—"; } },
+    { label: "Forestay", get: function (s) { var m = s.mechanic || {}; return (m.forestay !== undefined && m.forestay !== null) ? m.forestay : "—"; } },
+    { label: "Rake", get: function (s) { var m = s.mechanic || {}; return (m.rake !== undefined && m.rake !== null) ? m.rake : "—"; } },
+    { label: "Trim tab", get: function (s) { var m = s.mechanic || {}; return (m.trimtab !== undefined && m.trimtab !== null) ? m.trimtab : "—"; } },
+    { label: "Mast setup", get: function (s) { var m = s.mechanic || {}; return (m.mastSetup !== undefined && m.mastSetup !== null) ? m.mastSetup : "—"; } },
+    { label: "Main sheet mark", get: function (s) { var m = s.mechanic || {}; return (m.mainSheetMark !== undefined && m.mainSheetMark !== null) ? m.mainSheetMark : "—"; } },
+    { label: "Chock size", get: function (s) { var m = s.mechanic || {}; return m.chockSize || "—"; } },
+    { label: "Mast aligned", get: function (s) { return s.mast ? "Yes" : "Not set"; } }
+  ];
+  var CAMBER_HEIGHTS = [25, 50, 75, 87];
+  var CAMBER_METRICS = [
+    ["camber", "Camber"], ["draft", "Draft"], ["twist", "Twist"], ["entry", "Entry"],
+    ["exit", "Exit"], ["foreCam", "Fore cam"], ["backCam", "Back cam"]
+  ];
 
-  function renderCompareDetail(slot) {
-    var container = document.getElementById("compareDetail-" + slot);
-    var scan = compare[slot] ? findScan(compare[slot]) : null;
+  function renderCompareData() {
+    var container = document.getElementById("compareData");
+    var slots = ["left", "right"]
+      .map(function (slot) { return { slot: slot, scan: compare[slot] ? findScan(compare[slot]) : null }; })
+      .filter(function (b) { return b.scan; });
 
-    if (!scan) {
-      container.innerHTML = "<div class='scan-stage__empty'>Drag a scan into the " +
-        (slot === "left" ? "left" : "right") + " box above to see its details here.</div>";
+    if (!slots.length) {
+      container.innerHTML = "<div class='scan-stage__empty'>Drag a scan into a Compare box below to see its details here.</div>";
       return;
     }
 
-    var dotClass = scan.boat === "gemera" ? "boat-dot--gemera" : "boat-dot--artemis";
-    var html = "<div class='split-col__head'><span class='boat-dot " + dotClass + "'></span><h2>" +
-      (BOAT_LABEL[scan.boat] || scan.boat) + "</h2></div>";
+    var photosHtml = "<div class='compare-detail-grid'>" + slots.map(function (b) {
+      var dotClass = b.scan.boat === "gemera" ? "boat-dot--gemera" : "boat-dot--artemis";
+      return "<div>" +
+        "<div class='split-col__head'><span class='boat-dot " + dotClass + "'></span><h2>" + (BOAT_LABEL[b.scan.boat] || b.scan.boat) + "</h2></div>" +
+        "<div class='scan-stage'><img src='" + b.scan.file + "' alt='" + (BOAT_LABEL[b.scan.boat] || b.scan.boat) + " sail scan'></div>" +
+        "<button type='button' class='text-link compare-detail__calbtn' data-slot='" + b.slot + "' style='margin-top:10px;'>Set / edit mast alignment</button>" +
+        "</div>";
+    }).join("") + "</div>";
 
-    html += "<div class='scan-stage'><img src='" + scan.file + "' alt='" + (BOAT_LABEL[scan.boat] || scan.boat) + " sail scan'></div>";
-    html += "<button type='button' class='text-link compare-detail__calbtn' style='margin-top:10px;'>Set / edit mast alignment</button>";
+    var dataHtml = "<table class='compare-table' style='margin-top:20px;'><thead><tr><th>Field</th>" +
+      slots.map(function (b) { return "<th>" + (BOAT_LABEL[b.scan.boat] || b.scan.boat) + "</th>"; }).join("") +
+      "</tr></thead><tbody>" +
+      FIELD_DEFS.map(function (f) {
+        return "<tr><td>" + f.label + "</td>" + slots.map(function (b) { return "<td>" + f.get(b.scan) + "</td>"; }).join("") + "</tr>";
+      }).join("") +
+      "</tbody></table>";
 
-    var m = scan.mechanic || {};
-    var cells = [];
-    cells.push(cell("Event", scan.event || "—"));
-    cells.push(cell("Time", scan.time ? scan.time.replace("T", " ") : "—"));
-    cells.push(cell("Batten", scan.battenLabel || "—"));
-    cells.push(cell("Tack", scan.tack || "—"));
-    cells.push(cell("TWS", scan.wind && scan.wind.tws !== undefined ? scan.wind.tws + " kn" : "—"));
-    cells.push(cell("TWA", scan.wind && scan.wind.twa !== undefined ? scan.wind.twa + "°" : "—"));
-    cells.push(cell("BSP", scan.boat_ && scan.boat_.bsp !== undefined ? scan.boat_.bsp + " kn" : "—"));
-    cells.push(cell("Forestay", m.forestay !== undefined && m.forestay !== null ? m.forestay : "—"));
-    cells.push(cell("Rake", m.rake !== undefined && m.rake !== null ? m.rake : "—"));
-    cells.push(cell("Trim tab", m.trimtab !== undefined && m.trimtab !== null ? m.trimtab : "—"));
-    cells.push(cell("Mast setup", m.mastSetup !== undefined && m.mastSetup !== null ? m.mastSetup : "—"));
-    cells.push(cell("Main sheet mark", m.mainSheetMark !== undefined && m.mainSheetMark !== null ? m.mainSheetMark : "—"));
-    cells.push(cell("Chock size", m.chockSize || "—"));
-    cells.push(cell("Mast aligned", scan.mast ? "Yes" : "Not set"));
-
-    html += "<div class='scan-data'>" + cells.join("") + "</div>";
-
-    if (scan.camber && scan.camber.length) {
-      html += "<table class='compare-table' style='margin-top:14px;'><thead><tr>" +
-        "<th>Height</th><th>Camber</th><th>Draft</th><th>Twist</th><th>Entry</th><th>Exit</th><th>Fore cam</th><th>Back cam</th>" +
-        "</tr></thead><tbody>";
-      scan.camber.forEach(function (row) {
-        html += "<tr><td>" + row.height + "</td><td>" + row.camber + "</td><td>" + row.draft + "</td><td>" +
-          row.twist + "</td><td>" + row.entry + "</td><td>" + row.exit + "</td><td>" + row.foreCam + "</td><td>" + row.backCam + "</td></tr>";
-      });
-      html += "</tbody></table>";
+    var camberHtml = "";
+    if (slots.some(function (b) { return b.scan.camber && b.scan.camber.length; })) {
+      var headRow1 = "<th rowspan='2'>Height</th>" + slots.map(function (b) {
+        return "<th colspan='" + CAMBER_METRICS.length + "'>" + (BOAT_LABEL[b.scan.boat] || b.scan.boat) + "</th>";
+      }).join("");
+      var headRow2 = slots.map(function () {
+        return CAMBER_METRICS.map(function (m) { return "<th>" + m[1] + "</th>"; }).join("");
+      }).join("");
+      var bodyRows = CAMBER_HEIGHTS.map(function (h) {
+        var rowCells = slots.map(function (b) {
+          var row = (b.scan.camber || []).filter(function (r) { return r.height === h; })[0];
+          return CAMBER_METRICS.map(function (m) {
+            var v = row ? row[m[0]] : null;
+            return "<td>" + ((v === null || v === undefined) ? "—" : v) + "</td>";
+          }).join("");
+        }).join("");
+        return "<tr><td>" + h + "%</td>" + rowCells + "</tr>";
+      }).join("");
+      camberHtml = "<table class='compare-table' style='margin-top:20px;'><thead><tr>" + headRow1 + "</tr><tr>" + headRow2 + "</tr></thead><tbody>" + bodyRows + "</tbody></table>";
     }
 
-    container.innerHTML = html;
-    container.querySelector(".compare-detail__calbtn").addEventListener("click", function () {
-      openMastCalibrator(scan.id);
+    container.innerHTML = photosHtml + dataHtml + camberHtml;
+    container.querySelectorAll(".compare-detail__calbtn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var scan = compare[btn.dataset.slot] ? findScan(compare[btn.dataset.slot]) : null;
+        if (scan) openMastCalibrator(scan.id);
+      });
     });
-  }
-
-  function renderCompareDetails() {
-    renderCompareDetail("left");
-    renderCompareDetail("right");
   }
 
   // ---------- Overlay, mast-aligned ----------
@@ -534,8 +555,30 @@ import {
   ];
   var BOAT_LABEL = { artemis: "Artemis", gemera: "Gemera" };
 
+  // Picks a "nice" round step (1/2/5 × a power of ten) so y-axis labels read as sensible
+  // numbers (0, 5, 10…) rather than raw fractions of the data range.
+  function niceTicks(min, max, targetCount) {
+    var range = max - min || 1;
+    var rawStep = range / Math.max(1, targetCount - 1);
+    var mag = Math.pow(10, Math.floor(Math.log(rawStep) / Math.LN10));
+    var norm = rawStep / mag;
+    var niceNorm = norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10;
+    var step = niceNorm * mag;
+    var niceMin = Math.floor(min / step) * step;
+    var niceMax = Math.ceil(max / step) * step;
+    var ticks = [];
+    for (var v = niceMin; v <= niceMax + step / 2; v += step) {
+      ticks.push(Math.round(v * 1e6) / 1e6); // trim float noise
+    }
+    return ticks;
+  }
+
+  function formatTick(v) {
+    return Math.abs(v) < 1e-9 ? "0" : String(v);
+  }
+
   function buildMetricChartSvg(seriesList) {
-    var W = 320, H = 160, padL = 30, padR = 10, padT = 10, padB = 20;
+    var W = 320, H = 160, padL = 40, padR = 10, padT = 10, padB = 20;
     var plotW = W - padL - padR, plotH = H - padT - padB;
 
     var heights = [];
@@ -551,14 +594,22 @@ import {
 
     var hMin = heights[0], hMax = heights[heights.length - 1];
     if (hMax === hMin) hMax = hMin + 1;
-    var vMin = Math.min.apply(null, values), vMax = Math.max.apply(null, values);
-    var vPad = (vMax - vMin) * 0.15 || Math.abs(vMax || 1) * 0.15 || 1;
-    vMin -= vPad; vMax += vPad;
+    var vMinRaw = Math.min.apply(null, values), vMaxRaw = Math.max.apply(null, values);
+    var vPad = (vMaxRaw - vMinRaw) * 0.15 || Math.abs(vMaxRaw || 1) * 0.15 || 1;
+    var yTicks = niceTicks(vMinRaw - vPad, vMaxRaw + vPad, 5);
+    var vMin = yTicks[0], vMax = yTicks[yTicks.length - 1];
 
     function x(h) { return padL + (h - hMin) / (hMax - hMin) * plotW; }
     function y(v) { return padT + (1 - (v - vMin) / (vMax - vMin)) * plotH; }
 
     var svg = "<svg width='" + W + "' height='" + H + "' viewBox='0 0 " + W + " " + H + "' preserveAspectRatio='xMidYMid meet'>";
+
+    // Y-axis gridlines + numeric scale.
+    yTicks.forEach(function (t) {
+      var gy = y(t);
+      svg += "<line class='mchart-axis' x1='" + padL + "' y1='" + gy + "' x2='" + (padL + plotW) + "' y2='" + gy + "'/>";
+      svg += "<text class='mchart-axis-label' x='" + (padL - 6) + "' y='" + (gy + 3) + "' text-anchor='end'>" + formatTick(t) + "</text>";
+    });
 
     // Gridlines + axis labels (height %).
     heights.forEach(function (h) {
@@ -628,7 +679,7 @@ import {
     refreshFilterOptions();
     renderCatalogAll();
     renderCompareBoxes();
-    renderCompareDetails();
+    renderCompareData();
     renderOverlay();
     renderMetricCharts();
   }
@@ -736,7 +787,7 @@ import {
       var scan = findScan(cal.scanId);
       if (scan) {
         scan.mast = mast; // optimistic local update so the overlay/detail react immediately
-        ["left", "right"].forEach(function (slot) { if (compare[slot] === scan.id) renderCompareDetail(slot); });
+        renderCompareData();
         renderOverlay();
         if (liveMode) {
           updateDoc(doc(db, COLLECTION, scan.id), { mast: mast }).catch(function (e) {

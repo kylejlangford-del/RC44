@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#07111d" />
   <title>Sail Shots · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20260922c" />
+  <link rel="stylesheet" href="../styles.css?v=20260922d" />
 </head>
 <body>
   <div class="bg-glow bg-glow--one"></div>
@@ -73,8 +73,14 @@
 
       <section class="panel" style="margin-bottom:32px;">
         <h2 style="margin-top:0;">Compare</h2>
-        <p class="import-step__hint">Drag any thumbnail from the catalog below into a box here — any two scans, regardless of boat. They drive the data below, the charts and the overlay further down.</p>
-        <div class="compare-drop-grid compare-drop-grid--sm">
+        <p class="import-step__hint">Any two scans, regardless of boat — drag a thumbnail from the catalog below into a box at the bottom. They drive the data here, the charts and the overlay further down.</p>
+        <div id="compareData"></div>
+
+        <div class="section-kicker" style="margin-top:28px;">All scans</div>
+        <p class="import-step__hint">Every scan matching the filters above — drag a thumbnail into a box below, or tap its pencil to edit.</p>
+        <div id="catalog-all" class="thumb-grid thumb-grid--wide"></div>
+
+        <div class="compare-drop-grid compare-drop-grid--sm" style="margin-top:16px;">
           <div class="compare-drop compare-drop--sm" id="compareLeftBox" data-slot="left">
             <div class="compare-drop__empty">Drag a photo here</div>
           </div>
@@ -82,16 +88,6 @@
             <div class="compare-drop__empty">Drag a photo here</div>
           </div>
         </div>
-        <div class="compare-detail-grid" style="margin-top:24px;">
-          <div class="panel" id="compareDetail-left"></div>
-          <div class="panel" id="compareDetail-right"></div>
-        </div>
-      </section>
-
-      <section class="panel" style="margin-bottom:32px;">
-        <h2 style="margin-top:0;">All scans</h2>
-        <p class="import-step__hint">Every scan matching the filters above — drag a thumbnail into a Compare box, or tap its pencil to edit.</p>
-        <div id="catalog-all" class="thumb-grid thumb-grid--wide"></div>
       </section>
 
       <section class="panel">
@@ -196,6 +192,6 @@
   <script src="./data.js?v=20260922a"></script>
   <script src="../main-battens/firebase-config.js?v=20260922e"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script type="module" src="./app.js?v=20260922f"></script>
+  <script type="module" src="./app.js?v=20260922g"></script>
 </body>
 </html>
