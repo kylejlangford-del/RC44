@@ -1,48 +1,109 @@
+// RC44 Sail Shots — live cross-device sync via Firebase Firestore + Storage.
+// Falls back to local-only (this browser only) mode if firebase-config.js hasn't been filled in yet.
+// Each scan is its own Firestore document (collection "rc44-sail-shots"), so two people can add
+// scans or set mast alignment at the same time without clobbering each other. Photos go to
+// Firebase Storage; the Firestore doc just holds the resulting download URL.
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import {
+  initializeFirestore, collection, doc, setDoc, updateDoc, onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import {
+  getAuth, signInAnonymously, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import {
+  getStorage, ref as storageRef, uploadBytes, getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+
 (function () {
   "use strict";
 
-  var STORAGE_KEY = "rc44-sail-shots-v2";
+  var STORAGE_KEY = "rc44-sail-shots-v2"; // local-only fallback cache
+  var COLLECTION = "rc44-sail-shots";
+
   var scans = JSON.parse(JSON.stringify(window.SAIL_SHOTS || []));
-  try {
-    var raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) scans = JSON.parse(raw);
-  } catch (e) { /* ignore */ }
-
-  // Migrate anything saved under the old v1 key/shape once, so existing local edits aren't lost.
-  if (!localStorage.getItem(STORAGE_KEY)) {
-    try {
-      var oldRaw = localStorage.getItem("rc44-sail-shots-v1");
-      if (oldRaw) {
-        var oldScans = JSON.parse(oldRaw);
-        oldScans.forEach(function (s) {
-          s.event = s.event || "";
-          s.tack = s.tack || "";
-          s.mechanic = s.mechanic || {};
-          s.mechanic.mastSetup = s.mechanic.mastSetup !== undefined ? s.mechanic.mastSetup : null;
-          s.mechanic.mainSheetMark = s.mechanic.mainSheetMark !== undefined ? s.mechanic.mainSheetMark : null;
-          s.mechanic.chockSize = s.mechanic.chockSize !== undefined ? s.mechanic.chockSize : null;
-          s.mast = s.mast || null;
-        });
-        scans = oldScans;
-      }
-    } catch (e) { /* ignore */ }
-  }
-
+  var liveMode = false;
+  var db = null, storage = null;
   var selected = { artemis: null, gemera: null };
-  var dirty = false;
   var sailFilter = ""; // "" = all sails; else "Main" | "G1" | "J2" | "J3"
 
   // Existing scans predate the Main/G1/J2/J3 split — they're all mainsail battens, so tag
   // anything without a sail code as "Main" rather than losing them from the filter.
-  scans.forEach(function (s) { if (!s.sail) s.sail = "Main"; });
-
-  function persist() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(scans)); } catch (e) { /* ignore */ }
-    dirty = true;
-    document.getElementById("changesBar").classList.toggle("is-hidden", !dirty);
-  }
+  function tagDefaultSail(list) { list.forEach(function (s) { if (!s.sail) s.sail = "Main"; }); }
+  tagDefaultSail(scans);
 
   function findScan(id) { return scans.filter(function (s) { return s.id === id; })[0] || null; }
+
+  function safeGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function safeSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } }
+  function persistLocal() { safeSet(STORAGE_KEY, JSON.stringify(scans)); }
+
+  // ---------- Firebase init (falls back to local-only if not configured) ----------
+
+  var cfg = window.RC44_FIREBASE_CONFIG || {};
+  var configured = cfg.apiKey && cfg.apiKey.indexOf("REPLACE_ME") === -1;
+
+  if (configured) {
+    try {
+      var app = initializeApp(cfg);
+      // ignoreUndefinedProperties: an optional field left blank must not silently kill the save.
+      db = initializeFirestore(app, { ignoreUndefinedProperties: true });
+      storage = getStorage(app);
+      var auth = getAuth(app);
+      onAuthStateChanged(auth, function (user) {
+        if (user) {
+          liveMode = true;
+          document.getElementById("configWarning").classList.add("is-hidden");
+          subscribeScans();
+        }
+      });
+      signInAnonymously(auth).catch(function (e) {
+        console.error("Anonymous sign-in failed, falling back to local-only mode:", e);
+        fallbackLocal();
+      });
+    } catch (e) {
+      console.error("Firebase init failed, falling back to local-only mode:", e);
+      fallbackLocal();
+    }
+  } else {
+    fallbackLocal();
+  }
+
+  function fallbackLocal() {
+    liveMode = false;
+    document.getElementById("configWarning").classList.remove("is-hidden");
+    var raw = safeGet(STORAGE_KEY);
+    if (raw) { try { scans = JSON.parse(raw); } catch (e) { /* ignore */ } }
+    tagDefaultSail(scans);
+    renderAll();
+  }
+
+  var seededCheck = false;
+  function subscribeScans() {
+    onSnapshot(collection(db, COLLECTION), function (snap) {
+      if (snap.empty) {
+        // First run — seed Firestore from the bundled data.js, once.
+        if (!seededCheck) { seededCheck = true; seedFromLocalData(); }
+        return;
+      }
+      seededCheck = true;
+      var list = [];
+      snap.forEach(function (d) { list.push(d.data()); });
+      tagDefaultSail(list);
+      scans = list;
+      renderAll();
+    }, function (err) {
+      console.error("Sail Shots sync error", err);
+    });
+  }
+
+  function seedFromLocalData() {
+    var seed = JSON.parse(JSON.stringify(window.SAIL_SHOTS || []));
+    tagDefaultSail(seed);
+    seed.forEach(function (s) {
+      setDoc(doc(db, COLLECTION, s.id), s).catch(function (e) { console.error("Seed failed for " + s.id, e); });
+    });
+  }
 
   function dateOf(scan) {
     var d = new Date(scan.time);
@@ -272,6 +333,7 @@
   function loadImage(src) {
     return new Promise(function (resolve, reject) {
       var img = new Image();
+      img.crossOrigin = "anonymous";
       img.onload = function () { resolve(img); };
       img.onerror = reject;
       img.src = src;
@@ -364,7 +426,7 @@
   var BOAT_COLOR = { artemis: "var(--artemis)", gemera: "var(--gemera)" };
   var BOAT_LABEL = { artemis: "Artemis", gemera: "Gemera" };
 
-  function buildMetricChartSvg(seriesList, metricKey) {
+  function buildMetricChartSvg(seriesList) {
     var W = 320, H = 160, padL = 30, padR = 10, padT = 10, padB = 20;
     var plotW = W - padL - padR, plotH = H - padT - padB;
 
@@ -446,7 +508,7 @@
         return "<span><i style='background:" + s.color + ";'></i>" + s.label + "</span>";
       }).join("") + "</div>";
 
-      var svg = buildMetricChartSvg(seriesList, mc.key);
+      var svg = buildMetricChartSvg(seriesList);
       container.innerHTML = "<div class='metric-chart__title'>" + mc.title + "</div>" + legend +
         (svg || "<div class='mchart-empty'>No camber-table data on the selected scan(s).</div>");
     });
@@ -563,7 +625,19 @@
       cal.onSave(mast);
     } else if (cal.scanId) {
       var scan = findScan(cal.scanId);
-      if (scan) { scan.mast = mast; persist(); renderStage(scan.boat); renderOverlay(); }
+      if (scan) {
+        scan.mast = mast; // optimistic local update so the overlay/stage react immediately
+        renderStage(scan.boat);
+        renderOverlay();
+        if (liveMode) {
+          updateDoc(doc(db, COLLECTION, scan.id), { mast: mast }).catch(function (e) {
+            console.error("Mast save failed", e);
+            alert("Couldn't save mast alignment — check your connection. (" + e.message + ")");
+          });
+        } else {
+          persistLocal();
+        }
+      }
     }
     document.getElementById("calDialog").classList.add("is-hidden");
   });
@@ -572,11 +646,13 @@
 
   var addForm = document.getElementById("addScanForm");
   var photoDataUrl = null;
+  var photoFile = null;
   var pendingMast = null;
 
   document.getElementById("addPhotoInput").addEventListener("change", function (e) {
     var file = e.target.files[0];
     if (!file) return;
+    photoFile = file;
     pendingMast = null;
     document.getElementById("addMastStatus").textContent = "Not set";
     var reader = new FileReader();
@@ -694,9 +770,14 @@
     });
   });
 
+  function numOrNull(id) {
+    var v = document.getElementById(id).value;
+    return v === "" ? null : Number(v);
+  }
+
   addForm.addEventListener("submit", function (e) {
     e.preventDefault();
-    if (!photoDataUrl) { alert("Choose a photo first."); return; }
+    if (!photoFile) { alert("Choose a photo first."); return; }
 
     var camber = [];
     document.querySelectorAll("#camberRows tr").forEach(function (tr) {
@@ -709,12 +790,13 @@
       });
     });
 
+    var id = document.getElementById("addBoat").value + "-" + Date.now().toString(36);
     var scan = {
-      id: document.getElementById("addBoat").value + "-" + Date.now().toString(36),
+      id: id,
       boat: document.getElementById("addBoat").value,
       sail: document.getElementById("addSail").value,
       event: document.getElementById("addEvent").value.trim(),
-      file: photoDataUrl,
+      file: photoDataUrl, // replaced with the Storage URL below when live
       time: document.getElementById("addTime").value,
       tack: document.getElementById("addTack").value,
       battenLabel: document.getElementById("addBatten").value,
@@ -728,21 +810,52 @@
       mast: pendingMast,
       camber: camber
     };
-    scans.push(scan);
-    persist();
-    renderAll();
-    addForm.reset();
-    photoDataUrl = null;
-    pendingMast = null;
-    document.getElementById("addMastStatus").textContent = "Not set";
-    document.getElementById("addMastBtn").disabled = true;
-    document.getElementById("addScanDialog").classList.add("is-hidden");
-  });
 
-  function numOrNull(id) {
-    var v = document.getElementById(id).value;
-    return v === "" ? null : Number(v);
-  }
+    var submitBtn = document.getElementById("addScanSubmitBtn");
+    submitBtn.disabled = true;
+
+    function finishSave(finalScan) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Save scan";
+      addForm.reset();
+      photoDataUrl = null;
+      photoFile = null;
+      pendingMast = null;
+      document.getElementById("addMastStatus").textContent = "Not set";
+      document.getElementById("addMastBtn").disabled = true;
+      setOcrStatus("");
+      document.getElementById("addScanDialog").classList.add("is-hidden");
+      if (!liveMode) {
+        scans.push(finalScan);
+        persistLocal();
+        renderAll();
+      }
+      // in live mode, the onSnapshot listener delivers the new scan and re-renders itself
+    }
+
+    if (liveMode) {
+      submitBtn.textContent = "Uploading photo…";
+      var extMatch = photoFile.name && photoFile.name.match(/\.[a-zA-Z0-9]+$/);
+      var ext = extMatch ? extMatch[0] : ".jpg";
+      var sref = storageRef(storage, "sail-shots/" + id + ext);
+      uploadBytes(sref, photoFile).then(function () {
+        return getDownloadURL(sref);
+      }).then(function (url) {
+        scan.file = url;
+        submitBtn.textContent = "Saving…";
+        return setDoc(doc(db, COLLECTION, id), scan);
+      }).then(function () {
+        finishSave(scan);
+      }).catch(function (e) {
+        console.error("Save scan failed", e);
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Save scan";
+        alert("Couldn't save this scan — check your connection. (" + e.message + ")");
+      });
+    } else {
+      finishSave(scan);
+    }
+  });
 
   document.getElementById("addScanBtn").addEventListener("click", function () {
     document.getElementById("addScanDialog").classList.remove("is-hidden");
@@ -751,37 +864,18 @@
     document.getElementById("addScanDialog").classList.add("is-hidden");
   });
 
-  // ---------- Save / export ----------
+  // ---------- Backup export ----------
 
   document.getElementById("downloadDataBtn").addEventListener("click", function () {
-    var out = scans.map(function (s) {
-      var copy = JSON.parse(JSON.stringify(s));
-      if (copy.file && copy.file.indexOf("data:") === 0) copy.file = "REPLACE_WITH_FILE_PATH__see_console";
-      return copy;
-    });
-    var text = "/* RC44 Sail Shots — scan library. Edited via the Sail Shots page. */\n" +
-      "window.SAIL_SHOTS = " + JSON.stringify(out, null, 2) + ";\n";
+    var text = "/* RC44 Sail Shots — snapshot exported " + new Date().toISOString() + ". */\n" +
+      "window.SAIL_SHOTS = " + JSON.stringify(scans, null, 2) + ";\n";
     var blob = new Blob([text], { type: "text/javascript" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url; a.download = "data.js";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
-
-    scans.forEach(function (s) {
-      if (s.file && s.file.indexOf("data:") === 0) {
-        console.log("Photo still needs saving as a file for scan " + s.id + ":", s.file.slice(0, 60) + "…");
-      }
-    });
   });
 
-  document.getElementById("discardChangesBtn").addEventListener("click", function () {
-    try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
-    scans = JSON.parse(JSON.stringify(window.SAIL_SHOTS || []));
-    dirty = false;
-    document.getElementById("changesBar").classList.add("is-hidden");
-    renderAll();
-  });
-
-  renderAll();
+  if (!configured) renderAll();
 })();

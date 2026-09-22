@@ -21,8 +21,7 @@
       <div class="title-block"><span>Artemis &amp; Gemera</span><strong>Sail Shots</strong></div>
       <div class="header-actions">
         <button id="addScanBtn" class="ghost-button" type="button">Add scan</button>
-        <button id="discardChangesBtn" class="ghost-button" type="button">Discard local changes</button>
-        <button id="downloadDataBtn" class="ghost-button" type="button">Download data.js</button>
+        <button id="downloadDataBtn" class="ghost-button" type="button">Download backup</button>
         <a class="ghost-button" href="../">Home</a>
       </div>
     </header>
@@ -31,14 +30,16 @@
       <div class="section-kicker">Debrief</div>
       <h1>Sail shots</h1>
       <p class="intro">
-        Filter historical sail scans and compare Artemis against Gemera side by side. Edits and new
-        scans save to this browser — use <strong>Download data.js</strong> to publish (replace
-        <code>sail-shots/data.js</code> in the repo, and add any new photo files under
-        <code>sail-shots/photos/</code>).
+        Filter historical sail scans and compare Artemis against Gemera side by side. New scans and
+        mast alignment sync live to everyone viewing this page.
       </p>
 
-      <div id="changesBar" class="panel is-hidden" style="margin-bottom:24px;">
-        <span style="color:var(--muted-2); font-size:.86rem;">You have unpublished changes, saved in this browser only.</span>
+      <div id="configWarning" class="panel is-hidden" style="margin-bottom:24px; border-color: rgba(255,158,90,.4);">
+        <span style="color:#ffcaa0; font-size:.86rem;">
+          Live sync isn't configured yet — this page is running in local-only mode (scans stay in this
+          browser). Once the Firebase project config is filled in, scans and photos will sync between
+          devices automatically.
+        </span>
       </div>
 
       <section class="panel" style="margin-bottom:32px;">
@@ -87,6 +88,16 @@
       </section>
 
       <section class="panel">
+        <h2 style="margin-top:0;">Camber, draft &amp; twist</h2>
+        <p class="import-step__hint">From each selected scan's camber table, by height up the leech (25–87%). Both boats plot together when a scan is selected for each.</p>
+        <div class="metric-chart-grid">
+          <div class="metric-chart" id="chart-camber" data-metric-title="Camber"></div>
+          <div class="metric-chart" id="chart-draft" data-metric-title="Draft"></div>
+          <div class="metric-chart" id="chart-twist" data-metric-title="Twist"></div>
+        </div>
+      </section>
+
+      <section class="panel">
         <h2 style="margin-top:0;">Overlay</h2>
         <p class="import-step__hint">Gemera underneath, Artemis on top, aligned and scaled on the mast when both scans are calibrated.</p>
         <div id="overlayNote" class="pill" style="display:inline-flex; margin:10px 0;"></div>
@@ -95,16 +106,6 @@
           <input id="overlayOpacity" type="range" min="0" max="100" value="50" style="flex:1;">
         </div>
         <div id="overlayStage" class="scan-stage" style="position:relative; min-height:320px; overflow:hidden;"></div>
-      </section>
-
-      <section class="panel">
-        <h2 style="margin-top:0;">Camber, draft &amp; twist</h2>
-        <p class="import-step__hint">From each selected scan's camber table, by height up the leech (25–87%). Both boats plot together when a scan is selected for each.</p>
-        <div class="metric-chart-grid">
-          <div class="metric-chart" id="chart-camber" data-metric-title="Camber"></div>
-          <div class="metric-chart" id="chart-draft" data-metric-title="Draft"></div>
-          <div class="metric-chart" id="chart-twist" data-metric-title="Twist"></div>
-        </div>
       </section>
     </div>
   </main>
@@ -163,7 +164,7 @@
           </tbody>
         </table>
 
-        <button type="submit" class="ghost-button" style="margin-top:20px;">Save scan</button>
+        <button id="addScanSubmitBtn" type="submit" class="ghost-button" style="margin-top:20px;">Save scan</button>
       </form>
     </div>
   </div>
@@ -185,7 +186,8 @@
   </div>
 
   <script src="./data.js?v=20260922a"></script>
+  <script src="../main-battens/firebase-config.js?v=20260922e"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script src="./app.js?v=20260922a"></script>
+  <script type="module" src="./app.js?v=20260922b"></script>
 </body>
 </html>
