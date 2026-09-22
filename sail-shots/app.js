@@ -480,13 +480,21 @@ import {
     return { color: "var(--stiff)", points: pts };
   }
 
-  // Renders a camber-table cell with the OCR'd value plus, when available, the interpolated
-  // target for that scan/height/metric shown alongside it in red.
-  function camberCellHtml(scan, height, metricKey, value) {
+  // Renders a camber-table metric as two aligned columns: the OCR'd value, then its own
+  // "Tgt" column with the interpolated target (or — when there's nothing to compare against).
+  function camberCellsHtml(scan, height, metricKey, value) {
     var valText = (value === null || value === undefined) ? "—" : value;
-    if (value === null || value === undefined) return "<td>" + valText + "</td>";
-    var t = getTarget(scan, height, metricKey);
-    return "<td>" + valText + (t === null ? "" : "<span class='target-note'>" + t + "</span>") + "</td>";
+    var t = (value === null || value === undefined) ? null : getTarget(scan, height, metricKey);
+    var tText = t === null ? "—" : t;
+    return "<td>" + valText + "</td><td class='target-col'>" + tText + "</td>";
+  }
+
+  // Two-row sub-header for a metric's value + Tgt columns.
+  function camberMetricHeadHtml(label) {
+    return "<th colspan='2'>" + label + "</th>";
+  }
+  function camberMetricSubheadHtml() {
+    return "<th></th><th class='target-col'>Tgt</th>";
   }
 
   function renderCompareData() {
@@ -519,23 +527,26 @@ import {
 
     var camberHtml = "";
     if (slots.some(function (b) { return b.scan.camber && b.scan.camber.length; })) {
-      var headRow1 = "<th rowspan='2'>Height</th>" + slots.map(function (b) {
-        return "<th colspan='" + CAMBER_METRICS.length + "'>" + (BOAT_LABEL[b.scan.boat] || b.scan.boat) + "</th>";
+      var headRow1 = "<th rowspan='3'>Height</th>" + slots.map(function (b) {
+        return "<th colspan='" + (CAMBER_METRICS.length * 2) + "'>" + (BOAT_LABEL[b.scan.boat] || b.scan.boat) + "</th>";
       }).join("");
       var headRow2 = slots.map(function () {
-        return CAMBER_METRICS.map(function (m) { return "<th>" + m[1] + "</th>"; }).join("");
+        return CAMBER_METRICS.map(function (m) { return camberMetricHeadHtml(m[1]); }).join("");
+      }).join("");
+      var headRow3 = slots.map(function () {
+        return CAMBER_METRICS.map(function () { return camberMetricSubheadHtml(); }).join("");
       }).join("");
       var bodyRows = CAMBER_HEIGHTS.map(function (h) {
         var rowCells = slots.map(function (b) {
           var row = (b.scan.camber || []).filter(function (r) { return r.height === h; })[0];
           return CAMBER_METRICS.map(function (m) {
             var v = row ? row[m[0]] : null;
-            return camberCellHtml(b.scan, h, m[0], v);
+            return camberCellsHtml(b.scan, h, m[0], v);
           }).join("");
         }).join("");
         return "<tr><td>" + h + "%</td>" + rowCells + "</tr>";
       }).join("");
-      camberHtml = "<table class='compare-table' style='margin-top:20px;'><thead><tr>" + headRow1 + "</tr><tr>" + headRow2 + "</tr></thead><tbody>" + bodyRows + "</tbody></table>";
+      camberHtml = "<table class='compare-table compare-table--tgt' style='margin-top:20px;'><thead><tr>" + headRow1 + "</tr><tr>" + headRow2 + "</tr><tr>" + headRow3 + "</tr></thead><tbody>" + bodyRows + "</tbody></table>";
     }
 
     container.innerHTML = photosHtml + dataHtml + camberHtml;
@@ -585,13 +596,14 @@ import {
       "</tbody></table>";
 
     if (scan.camber && scan.camber.length) {
-      html += "<table class='compare-table' style='margin-top:16px;'><thead><tr><th>Height</th>" +
-        CAMBER_METRICS.map(function (m) { return "<th>" + m[1] + "</th>"; }).join("") + "</tr></thead><tbody>" +
+      html += "<table class='compare-table compare-table--tgt' style='margin-top:16px;'><thead><tr><th rowspan='2'>Height</th>" +
+        CAMBER_METRICS.map(function (m) { return camberMetricHeadHtml(m[1]); }).join("") + "</tr><tr>" +
+        CAMBER_METRICS.map(function () { return camberMetricSubheadHtml(); }).join("") + "</tr></thead><tbody>" +
         CAMBER_HEIGHTS.map(function (h) {
           var row = scan.camber.filter(function (r) { return r.height === h; })[0];
           return "<tr><td>" + h + "%</td>" + CAMBER_METRICS.map(function (m) {
             var v = row ? row[m[0]] : null;
-            return camberCellHtml(scan, h, m[0], v);
+            return camberCellsHtml(scan, h, m[0], v);
           }).join("") + "</tr>";
         }).join("") + "</tbody></table>";
     }

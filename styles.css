@@ -671,6 +671,29 @@ select:focus, input:focus, textarea:focus {
 
 .compare-table tr:last-child td { border-bottom: none; }
 
+/* Camber tables with a value + Tgt sub-column per metric — right-aligned numbers so the
+   value and its target line up cleanly under each other, with the Tgt column set off by a
+   faint dashed divider and colored to match the target chart lines. */
+.compare-table--tgt th,
+.compare-table--tgt td {
+  padding: 8px 10px;
+  text-align: right;
+  white-space: nowrap;
+}
+.compare-table--tgt th:first-child,
+.compare-table--tgt td:first-child {
+  text-align: left;
+}
+.compare-table--tgt .target-col {
+  border-left: 1px dashed var(--line);
+  color: var(--stiff);
+}
+.compare-table--tgt th.target-col {
+  font-size: .64rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
 .correction-input {
   width: 100%;
   min-width: 110px;
@@ -856,15 +879,6 @@ select:focus, input:focus, textarea:focus {
   border-radius: 0 !important;
 }
 
-/* Target value shown alongside an OCR'd camber-table value (interpolated flying-shape target). */
-.target-note {
-  display: inline-block;
-  margin-left: 6px;
-  color: var(--stiff);
-  font-size: .72rem;
-  font-weight: 600;
-}
-
 @media (max-width: 980px) {
   .split-view { grid-template-columns: 1fr; }
 }
@@ -903,7 +917,7 @@ select:focus, input:focus, textarea:focus {
 .scan-stage__empty {
   color: var(--muted);
   font-size: .84rem;
-  padding: 40px;
+  padding: 6px 0;
   text-align: center;
 }
 
