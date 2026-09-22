@@ -645,11 +645,22 @@ import {
     });
   }
 
+  // The "on top" <img> currently in the overlay stage, kept around so the opacity slider can
+  // update it directly (see updateOverlayOpacity) instead of triggering a full rebuild on every
+  // drag tick — rebuilding cleared and reloaded both images each time, which flashed.
+  var overlayImgEl = null;
+
+  function updateOverlayOpacity() {
+    if (!overlayImgEl) return;
+    overlayImgEl.style.opacity = document.getElementById("overlayOpacity").value / 100;
+  }
+
   function renderOverlay() {
     var g = compare.left ? findScan(compare.left) : null; // base, underneath
     var a = compare.right ? findScan(compare.right) : null; // overlay, on top
     var wrap = document.getElementById("overlayStage");
     var note = document.getElementById("overlayNote");
+    overlayImgEl = null;
 
     if (!a || !g) {
       wrap.innerHTML = "<div class='scan-stage__empty'>Drag a scan into both Compare boxes above to overlay them.</div>";
@@ -681,6 +692,7 @@ import {
       var opacity = document.getElementById("overlayOpacity").value / 100;
       overlayEl.style.opacity = opacity;
       wrap.appendChild(overlayEl);
+      overlayImgEl = overlayEl;
 
       if (g.mast && a.mast) {
         // Base mast points, in stage pixel space.
@@ -716,7 +728,7 @@ import {
     });
   }
 
-  document.getElementById("overlayOpacity").addEventListener("input", renderOverlay);
+  document.getElementById("overlayOpacity").addEventListener("input", updateOverlayOpacity);
   window.addEventListener("resize", renderOverlay);
 
   // ---------- Camber / draft / twist mini charts ----------
