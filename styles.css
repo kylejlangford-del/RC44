@@ -1232,6 +1232,15 @@ select:focus, input:focus, textarea:focus {
 .cal-point { cursor: grab; }
 .cal-point:active { cursor: grabbing; }
 
+/* Second (cross) axis — a separate reference line for scans where the mast alone can't pin down
+   both scale and shear (e.g. a jib shot taken at an angle). Drawn in red so it reads as distinct
+   from the teal mast line at a glance. */
+.cal-point--axis2 { fill: var(--stiff); }
+.cal-line--axis2 { stroke: var(--stiff); }
+.cal-label--axis2 { fill: var(--stiff); }
+
+#calAxis2Btn.is-active { border-color: var(--stiff); color: var(--stiff); }
+
 /* Magnifying loupe shown while placing or dragging a mast point, for pixel-accurate placement. */
 .cal-loupe {
   position: absolute;

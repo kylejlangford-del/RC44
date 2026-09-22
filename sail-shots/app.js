@@ -404,7 +404,7 @@ import {
     { label: "Mast setup", get: function (s) { var m = s.mechanic || {}; return (m.mastSetup !== undefined && m.mastSetup !== null) ? m.mastSetup : "—"; } },
     { label: "Main sheet mark", get: function (s) { var m = s.mechanic || {}; return (m.mainSheetMark !== undefined && m.mainSheetMark !== null) ? m.mainSheetMark : "—"; } },
     { label: "Chock size", get: function (s) { var m = s.mechanic || {}; return m.chockSize || "—"; } },
-    { label: "Mast aligned", get: function (s) { return s.mast ? "Yes" : "Not set"; } }
+    { label: "Mast aligned", get: function (s) { return s.mast ? (s.mast2 ? "Yes (2-axis)" : "Yes") : "Not set"; } }
   ];
   var CAMBER_HEIGHTS = [25, 50, 75, 87];
   var CAMBER_METRICS = [
@@ -703,6 +703,44 @@ import {
         var p1 = { x: a.mast.x1 * aImg.naturalWidth, y: a.mast.y1 * aImg.naturalHeight };
         var p2 = { x: a.mast.x2 * aImg.naturalWidth, y: a.mast.y2 * aImg.naturalHeight };
 
+        // A single mast line only pins down a similarity transform (one uniform scale + one
+        // rotation) — it can't tell a true uniform zoom apart from the photos simply being shot
+        // from different distances/angles along the sail's other axis. That's exactly what shows
+        // up as "one photo looks more zoomed in" even though the mast itself lines up fine —
+        // most often on jib shots, where the two boats/cameras are rarely framed the same way.
+        // When a second reference axis is set on both scans (e.g. the boom, or a batten), use it
+        // together with the mast to solve a full affine transform — independent scale on each
+        // axis plus shear — instead of assuming the same scale applies in every direction.
+        if (g.mast2 && a.mast2) {
+          var q3 = { x: offsetX + g.mast2.x1 * renderedW, y: offsetY + g.mast2.y1 * renderedH };
+          var q4 = { x: offsetX + g.mast2.x2 * renderedW, y: offsetY + g.mast2.y2 * renderedH };
+          var p3 = { x: a.mast2.x1 * aImg.naturalWidth, y: a.mast2.y1 * aImg.naturalHeight };
+          var p4 = { x: a.mast2.x2 * aImg.naturalWidth, y: a.mast2.y2 * aImg.naturalHeight };
+
+          var v1x = p2.x - p1.x, v1y = p2.y - p1.y; // mast vector, overlay space
+          var v2x = p4.x - p3.x, v2y = p4.y - p3.y; // second-axis vector, overlay space
+          var w1x = q2.x - q1.x, w1y = q2.y - q1.y; // mast vector, base space
+          var w2x = q4.x - q3.x, w2y = q4.y - q3.y; // second-axis vector, base space
+          var det = v1x * v2y - v2x * v1y;
+
+          // det collapses to ~0 when the second axis is nearly parallel to the mast — the two
+          // points don't add any independent information, so solving for M would blow up the
+          // scale in that direction. Fall back to the mast-only similarity transform instead.
+          if (Math.abs(det) > 1e-6) {
+            var m00 = (w1x * v2y - w2x * v1y) / det;
+            var m01 = (w2x * v1x - w1x * v2x) / det;
+            var m10 = (w1y * v2y - w2y * v1y) / det;
+            var m11 = (w2y * v1x - w1y * v2x) / det;
+            var atx = q1.x - (m00 * p1.x + m01 * p1.y);
+            var aty = q1.y - (m10 * p1.x + m11 * p1.y);
+
+            overlayEl.style.transform = "matrix(" + m00 + "," + m10 + "," + m01 + "," + m11 + "," + atx + "," + aty + ")";
+            note.textContent = "Aligned on the mast + second axis — both scans are 2-axis calibrated.";
+            note.classList.remove("pill--warn");
+            return;
+          }
+        }
+
         var pDx = p2.x - p1.x, pDy = p2.y - p1.y;
         var qDx = q2.x - q1.x, qDy = q2.y - q1.y;
         var pLen = Math.sqrt(pDx * pDx + pDy * pDy) || 1;
@@ -714,7 +752,9 @@ import {
         var ty = q1.y - s * (p1.x * sinT + p1.y * cosT);
 
         overlayEl.style.transform = "translate(" + tx + "px," + ty + "px) rotate(" + (theta * 180 / Math.PI) + "deg) scale(" + s + ")";
-        note.textContent = "Aligned on the mast — both scans are mast-calibrated.";
+        note.textContent = (g.mast2 || a.mast2)
+          ? "Aligned on the mast — add a second axis on both scans for a truer fit on tricky angles."
+          : "Aligned on the mast — both scans are mast-calibrated.";
         note.classList.remove("pill--warn");
       } else {
         // No calibration on one or both — best-effort contain-fit, uncorrected.
@@ -896,7 +936,15 @@ import {
 
   // ---------- Mast calibration dialog ----------
 
-  var cal = { points: [], imgEl: null, scanId: null, onSave: null, dragIndex: -1, suppressNextClick: false };
+  // cal.points is the primary axis (the mast — top/base). cal.points2 is an optional second,
+  // ideally roughly-perpendicular reference line (e.g. the boom, or a batten across the sail).
+  // With only the mast set, alignment is a similarity transform (uniform scale + rotate) — fine
+  // when both photos are shot from about the same angle. Some pairs (jib shots especially, where
+  // the two boats/cameras are rarely lined up the same way) get visibly wrong scale on one axis
+  // even with a perfect mast line, because a single line can't tell the transform apart from a
+  // non-uniform, two-axis distortion. Adding a second axis gives two independent direction vectors,
+  // enough to solve a full affine transform (independent scale + shear per axis) instead.
+  var cal = { points: [], points2: [], imgEl: null, scanId: null, onSave: null, dragIndex: -1, dragAxis: 1, activeAxis: 1, suppressNextClick: false };
 
   function autoDetectMast(imgEl) {
     try {
@@ -1017,24 +1065,31 @@ import {
       ];
       drawCalPoints();
       document.getElementById("calSaveBtn").disabled = false;
+      document.getElementById("calAxis2Btn").disabled = false;
       document.getElementById("calHint").textContent = "Auto-detected — drag either point to fine-tune, or Save.";
     } else if (!silentIfFailed) {
       document.getElementById("calHint").textContent = "Couldn't auto-detect the mast — click the top, then the base, to set it by hand.";
     }
   }
 
-  function openMastCalibrator(scanId, imageSrcOverride, onSaveOverride) {
+  function openMastCalibrator(scanId, imageSrcOverride, onSaveOverride, existingOverride, existing2Override) {
     var scan = scanId ? findScan(scanId) : null;
     var src = imageSrcOverride || (scan ? scan.file : null);
     if (!src) return;
 
     cal.points = [];
+    cal.points2 = [];
     cal.scanId = scanId;
     cal.onSave = onSaveOverride || null;
     cal.dragIndex = -1;
+    cal.dragAxis = 1;
+    cal.activeAxis = 1;
     cal.suppressNextClick = false;
+    document.getElementById("calAxis2Btn").classList.remove("is-active");
+    document.getElementById("calAxis2Btn").textContent = "Add second axis";
 
-    var existing = scan ? scan.mast : null;
+    var existing = scan ? scan.mast : (existingOverride || null);
+    var existing2 = scan ? scan.mast2 : (existing2Override || null);
 
     var dlg = document.getElementById("calDialog");
     dlg.classList.remove("is-hidden");
@@ -1060,8 +1115,15 @@ import {
 
     document.getElementById("calHint").textContent = "Click the top of the mast, then click the base (gooseneck).";
     document.getElementById("calSaveBtn").disabled = true;
+    document.getElementById("calAxis2Btn").disabled = true;
 
     function ready() {
+      if (existing2) {
+        cal.points2 = [
+          { xf: existing2.x1, yf: existing2.y1 },
+          { xf: existing2.x2, yf: existing2.y2 }
+        ];
+      }
       if (existing) {
         cal.points = [
           { xf: existing.x1, yf: existing.y1 },
@@ -1069,7 +1131,10 @@ import {
         ];
         drawCalPoints();
         document.getElementById("calSaveBtn").disabled = false;
-        document.getElementById("calHint").textContent = "Existing alignment shown — drag a point to adjust, Auto-detect to re-guess, or Save.";
+        document.getElementById("calAxis2Btn").disabled = false;
+        document.getElementById("calHint").textContent = existing2
+          ? "Existing alignment shown, including a second axis — drag a point to adjust, or Save."
+          : "Existing alignment shown — drag a point to adjust, Auto-detect to re-guess, add a second axis for tricky angles, or Save.";
       } else {
         runAutoDetect(true);
         if (!cal.points.length) {
@@ -1119,20 +1184,39 @@ import {
       loupe.classList.remove("is-visible");
     }
 
+    function activePts() { return cal.activeAxis === 2 ? cal.points2 : cal.points; }
+
+    function updateCalHint() {
+      if (cal.activeAxis === 2) {
+        document.getElementById("calHint").textContent = cal.points2.length === 0
+          ? "Click one end of a second reference line (e.g. the boom, or a batten across the sail), then the other end."
+          : (cal.points2.length === 1
+            ? "Now click the other end of that reference line."
+            : "Second axis set. Drag either point to fine-tune, click again to redo, click “Add second axis” to switch back, or Save.");
+      } else {
+        document.getElementById("calHint").textContent = cal.points.length === 0
+          ? "Click the top of the mast, then click the base (gooseneck)."
+          : (cal.points.length === 1
+            ? "Now click the base of the mast (gooseneck)."
+            : "Two points set. Drag either to fine-tune, click again to redo, or Save." +
+              (cal.points2.length === 2 ? "" : " For tricky angles (like a jib shot), add a second axis for a truer fit."));
+      }
+    }
+
     stage.onclick = function (e) {
       if (cal.suppressNextClick) { cal.suppressNextClick = false; return; }
-      if (cal.points.length >= 2) cal.points = [];
+      var pts = activePts();
+      if (pts.length >= 2) pts.length = 0;
       var p = pointFromEvent(e);
-      cal.points.push(p);
+      pts.push(p);
       drawCalPoints();
-      document.getElementById("calHint").textContent = cal.points.length === 1
-        ? "Now click the base of the mast (gooseneck)."
-        : "Two points set. Drag either to fine-tune, click again to redo, or Save.";
+      updateCalHint();
       document.getElementById("calSaveBtn").disabled = cal.points.length < 2;
+      document.getElementById("calAxis2Btn").disabled = cal.points.length < 2;
     };
 
     stage.onmousemove = function (e) {
-      if (cal.dragIndex === -1 && cal.points.length < 2) {
+      if (cal.dragIndex === -1 && activePts().length < 2) {
         var p = pointFromEvent(e);
         positionLoupe(e.clientX, e.clientY, p.xf, p.yf);
       }
@@ -1144,8 +1228,10 @@ import {
     svg.addEventListener("mousedown", function (e) {
       var target = e.target;
       if (!target || target.tagName !== "circle") return;
-      var idx = Array.prototype.indexOf.call(svg.querySelectorAll("circle"), target);
-      if (idx === -1) return;
+      var axis = target.getAttribute("data-axis") === "2" ? 2 : 1;
+      var idx = parseInt(target.getAttribute("data-idx"), 10);
+      if (idx !== 0 && idx !== 1) return;
+      cal.dragAxis = axis;
       cal.dragIndex = idx;
       e.preventDefault();
     });
@@ -1153,7 +1239,7 @@ import {
     document.addEventListener("mousemove", cal._onDocMove = function (e) {
       if (cal.dragIndex === -1 || !cal.imgEl || cal.imgEl !== img) return;
       var p = pointFromEvent(e);
-      cal.points[cal.dragIndex] = p;
+      (cal.dragAxis === 2 ? cal.points2 : cal.points)[cal.dragIndex] = p;
       drawCalPoints();
       positionLoupe(e.clientX, e.clientY, p.xf, p.yf);
     });
@@ -1163,6 +1249,7 @@ import {
         cal.suppressNextClick = true;
         hideLoupe();
         document.getElementById("calSaveBtn").disabled = cal.points.length < 2;
+        document.getElementById("calAxis2Btn").disabled = cal.points.length < 2;
       }
     });
   }
@@ -1172,26 +1259,34 @@ import {
     var w = img.clientWidth, h = img.clientHeight;
     svg.setAttribute("viewBox", "0 0 " + w + " " + h);
     svg.innerHTML = "";
-    if (cal.points.length === 2) {
-      var p1 = cal.points[0], p2 = cal.points[1];
-      var line = document.createElementNS(svg.namespaceURI, "line");
-      line.setAttribute("x1", p1.xf * w); line.setAttribute("y1", p1.yf * h);
-      line.setAttribute("x2", p2.xf * w); line.setAttribute("y2", p2.yf * h);
-      line.setAttribute("class", "cal-line");
-      svg.appendChild(line);
+
+    function drawAxis(pts, axisNum, labels) {
+      if (pts.length === 2) {
+        var p1 = pts[0], p2 = pts[1];
+        var line = document.createElementNS(svg.namespaceURI, "line");
+        line.setAttribute("x1", p1.xf * w); line.setAttribute("y1", p1.yf * h);
+        line.setAttribute("x2", p2.xf * w); line.setAttribute("y2", p2.yf * h);
+        line.setAttribute("class", axisNum === 2 ? "cal-line cal-line--axis2" : "cal-line");
+        svg.appendChild(line);
+      }
+      pts.forEach(function (p, i) {
+        var c = document.createElementNS(svg.namespaceURI, "circle");
+        c.setAttribute("cx", p.xf * w); c.setAttribute("cy", p.yf * h);
+        c.setAttribute("r", 8);
+        c.setAttribute("class", axisNum === 2 ? "cal-point cal-point--axis2" : "cal-point");
+        c.setAttribute("data-axis", axisNum);
+        c.setAttribute("data-idx", i);
+        svg.appendChild(c);
+        var t = document.createElementNS(svg.namespaceURI, "text");
+        t.setAttribute("x", p.xf * w + 12); t.setAttribute("y", p.yf * h - 10);
+        t.setAttribute("class", axisNum === 2 ? "cal-label cal-label--axis2" : "cal-label");
+        t.textContent = labels[i];
+        svg.appendChild(t);
+      });
     }
-    cal.points.forEach(function (p, i) {
-      var c = document.createElementNS(svg.namespaceURI, "circle");
-      c.setAttribute("cx", p.xf * w); c.setAttribute("cy", p.yf * h);
-      c.setAttribute("r", 8);
-      c.setAttribute("class", "cal-point");
-      svg.appendChild(c);
-      var t = document.createElementNS(svg.namespaceURI, "text");
-      t.setAttribute("x", p.xf * w + 12); t.setAttribute("y", p.yf * h - 10);
-      t.setAttribute("class", "cal-label");
-      t.textContent = i === 0 ? "Top" : "Base";
-      svg.appendChild(t);
-    });
+
+    drawAxis(cal.points, 1, ["Top", "Base"]);
+    drawAxis(cal.points2, 2, ["A", "B"]);
   }
 
   document.getElementById("calClose").addEventListener("click", function () {
@@ -1204,27 +1299,57 @@ import {
   });
   document.getElementById("calClearBtn").addEventListener("click", function () {
     cal.points = [];
+    cal.points2 = [];
+    cal.activeAxis = 1;
+    var axis2Btn = document.getElementById("calAxis2Btn");
+    axis2Btn.classList.remove("is-active");
+    axis2Btn.textContent = "Add second axis";
+    axis2Btn.disabled = true;
     drawCalPoints();
     document.getElementById("calSaveBtn").disabled = true;
     document.getElementById("calHint").textContent = "Click the top of the mast, then click the base (gooseneck).";
   });
   document.getElementById("calAutoBtn").addEventListener("click", function () {
+    cal.activeAxis = 1;
+    var axis2Btn = document.getElementById("calAxis2Btn");
+    axis2Btn.classList.remove("is-active");
+    axis2Btn.textContent = "Add second axis";
     runAutoDetect(false);
+  });
+  document.getElementById("calAxis2Btn").addEventListener("click", function (e) {
+    var btn = e.currentTarget;
+    if (btn.disabled) return;
+    cal.activeAxis = cal.activeAxis === 2 ? 1 : 2;
+    btn.classList.toggle("is-active", cal.activeAxis === 2);
+    btn.textContent = cal.activeAxis === 2 ? "Editing second axis — click to go back" : "Add second axis";
+    // Re-run the same hint logic the dialog's click handler uses, without needing a click event.
+    var hintEl = document.getElementById("calHint");
+    if (cal.activeAxis === 2) {
+      hintEl.textContent = cal.points2.length === 0
+        ? "Click one end of a second reference line (e.g. the boom, or a batten across the sail), then the other end."
+        : (cal.points2.length === 1 ? "Now click the other end of that reference line." : "Second axis set. Drag either point to fine-tune, click again to redo, click “Add second axis” to switch back, or Save.");
+    } else {
+      hintEl.textContent = "Editing the mast line — drag either point to fine-tune, click again to redo, or Save.";
+    }
   });
   document.getElementById("calSaveBtn").addEventListener("click", function () {
     if (cal.points.length !== 2) return;
     var mast = { x1: cal.points[0].xf, y1: cal.points[0].yf, x2: cal.points[1].xf, y2: cal.points[1].yf };
+    var mast2 = cal.points2.length === 2
+      ? { x1: cal.points2[0].xf, y1: cal.points2[0].yf, x2: cal.points2[1].xf, y2: cal.points2[1].yf }
+      : null;
     if (cal.onSave) {
-      cal.onSave(mast);
+      cal.onSave(mast, mast2);
     } else if (cal.scanId) {
       var scan = findScan(cal.scanId);
       if (scan) {
         scan.mast = mast; // optimistic local update so the overlay/detail react immediately
+        scan.mast2 = mast2;
         renderCompareData();
         renderOverlay();
         if (scanPreviewId === scan.id) openScanPreview(scan.id);
         if (liveMode) {
-          updateDoc(doc(db, COLLECTION, scan.id), { mast: mast }).catch(function (e) {
+          updateDoc(doc(db, COLLECTION, scan.id), { mast: mast, mast2: mast2 }).catch(function (e) {
             console.error("Mast save failed", e);
             alert("Couldn't save mast alignment — check your connection. (" + e.message + ")");
           });
@@ -1246,6 +1371,7 @@ import {
   var photoDataUrl = null;
   var photoFile = null;
   var pendingMast = null;
+  var pendingMast2 = null;
   var editingScanId = null; // set when the dialog is open in "edit an existing scan" mode
 
   function resetAddDialogChrome() {
@@ -1277,6 +1403,7 @@ import {
     photoDataUrl = scan.file;
     photoFile = null;
     pendingMast = scan.mast || null;
+    pendingMast2 = scan.mast2 || null;
 
     document.getElementById("addScanDialogTitle").textContent = "Edit scan";
     document.getElementById("addScanSubmitBtn").textContent = "Save changes";
@@ -1314,6 +1441,7 @@ import {
     if (!file) return;
     photoFile = file;
     pendingMast = null;
+    pendingMast2 = null;
     document.getElementById("addMastStatus").textContent = "Not set";
     var reader = new FileReader();
     reader.onload = function () {
@@ -1424,10 +1552,11 @@ import {
 
   document.getElementById("addMastBtn").addEventListener("click", function () {
     if (!photoDataUrl) return;
-    openMastCalibrator(null, photoDataUrl, function (mast) {
+    openMastCalibrator(null, photoDataUrl, function (mast, mast2) {
       pendingMast = mast;
+      pendingMast2 = mast2;
       document.getElementById("addMastStatus").textContent = "Set";
-    });
+    }, pendingMast, pendingMast2);
   });
 
   function numOrNull(id) {
@@ -1470,6 +1599,7 @@ import {
         chockSize: document.getElementById("addChock").value.trim() || null
       },
       mast: pendingMast,
+      mast2: pendingMast2,
       camber: camber
     };
 
@@ -1482,6 +1612,7 @@ import {
       photoDataUrl = null;
       photoFile = null;
       pendingMast = null;
+      pendingMast2 = null;
       document.getElementById("addMastStatus").textContent = "Not set";
       document.getElementById("addMastBtn").disabled = true;
       setOcrStatus("");
@@ -1542,6 +1673,7 @@ import {
     photoDataUrl = null;
     photoFile = null;
     pendingMast = null;
+    pendingMast2 = null;
     document.getElementById("addMastStatus").textContent = "Not set";
     document.getElementById("addMastBtn").disabled = true;
     setOcrStatus("");
