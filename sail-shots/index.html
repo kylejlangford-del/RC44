@@ -189,9 +189,20 @@
     </div>
   </div>
 
+  <div id="scanPreviewDialog" class="dialog is-hidden">
+    <div class="dialog__backdrop"></div>
+    <div class="dialog__panel" style="width:min(720px,100%); max-height:90vh; overflow-y:auto;">
+      <div class="dialog__head">
+        <h2 id="scanPreviewTitle">Scan</h2>
+        <button id="scanPreviewClose" class="text-link" type="button">Close</button>
+      </div>
+      <div id="scanPreviewBody"></div>
+    </div>
+  </div>
+
   <script src="./data.js?v=20260922a"></script>
   <script src="../main-battens/firebase-config.js?v=20260922e"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script type="module" src="./app.js?v=20260922h"></script>
+  <script type="module" src="./app.js?v=20260922i"></script>
 </body>
 </html>

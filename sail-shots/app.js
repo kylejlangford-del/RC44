@@ -321,17 +321,10 @@ import {
         e.stopPropagation();
         openEditDialog(s.id);
       });
-      // Click (as well as drag) expands this scan into Compare — fills the first empty slot,
-      // or replaces the right slot if both are taken — then scrolls the expanded photo/data/
-      // charts into view, so a click is a one-tap way to see a scan full-size with its numbers.
+      // Click pops the scan open in a quick-look dialog (photo, data, graphs) that closes fast
+      // (Close button, backdrop click, or Esc). Dragging still fills the Compare boxes below.
       card.addEventListener("click", function () {
-        if (s.id !== compare.left && s.id !== compare.right) {
-          var slot = !compare.left ? "left" : (!compare.right ? "right" : "right");
-          compare[slot] = s.id;
-          updateCompareSlot(slot);
-        }
-        var target = document.getElementById("compareData");
-        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+        openScanPreview(s.id);
       });
       grid.appendChild(card);
     });
@@ -471,6 +464,79 @@ import {
       });
     });
   }
+
+  // ---------- Scan preview (pop-out) — click a thumbnail for a quick look, closes fast ----------
+
+  var scanPreviewId = null;
+
+  function buildSingleScanCharts(scan) {
+    if (!scan.camber || !scan.camber.length) return "";
+    var html = "<div class='metric-chart-grid' style='margin-top:20px;'>";
+    METRIC_CHARTS.forEach(function (mc) {
+      var points = scan.camber
+        .filter(function (row) { return row[mc.key] !== null && row[mc.key] !== undefined; })
+        .map(function (row) { return { h: row.height, v: row[mc.key] }; });
+      var svg = points.length ? buildMetricChartSvg([{ color: "var(--accent)", points: points }]) : null;
+      html += "<div class='metric-chart'><div class='metric-chart__title'>" + mc.title + "</div>" +
+        (svg || "<div class='mchart-empty'>No data.</div>") + "</div>";
+    });
+    html += "</div>";
+    return html;
+  }
+
+  function openScanPreview(scanId) {
+    var scan = findScan(scanId);
+    if (!scan) return;
+    scanPreviewId = scanId;
+
+    var dotClass = scan.boat === "gemera" ? "boat-dot--gemera" : "boat-dot--artemis";
+    document.getElementById("scanPreviewTitle").innerHTML =
+      "<span class='boat-dot " + dotClass + "' style='display:inline-block; vertical-align:middle; margin-right:8px;'></span>" +
+      (BOAT_LABEL[scan.boat] || scan.boat);
+
+    var html = "<div class='scan-stage' style='margin-top:4px;'><img src='" + scan.file + "' alt='" + (BOAT_LABEL[scan.boat] || scan.boat) + " sail scan'></div>";
+    html += "<button type='button' id='scanPreviewCalBtn' class='text-link' style='margin-top:10px;'>Set / edit mast alignment</button>";
+
+    html += "<table class='compare-table' style='margin-top:16px;'><tbody>" +
+      FIELD_DEFS.map(function (f) { return "<tr><td>" + f.label + "</td><td>" + f.get(scan) + "</td></tr>"; }).join("") +
+      "</tbody></table>";
+
+    if (scan.camber && scan.camber.length) {
+      html += "<table class='compare-table' style='margin-top:16px;'><thead><tr><th>Height</th>" +
+        CAMBER_METRICS.map(function (m) { return "<th>" + m[1] + "</th>"; }).join("") + "</tr></thead><tbody>" +
+        CAMBER_HEIGHTS.map(function (h) {
+          var row = scan.camber.filter(function (r) { return r.height === h; })[0];
+          return "<tr><td>" + h + "%</td>" + CAMBER_METRICS.map(function (m) {
+            var v = row ? row[m[0]] : null;
+            return "<td>" + ((v === null || v === undefined) ? "—" : v) + "</td>";
+          }).join("") + "</tr>";
+        }).join("") + "</tbody></table>";
+    }
+
+    html += buildSingleScanCharts(scan);
+
+    document.getElementById("scanPreviewBody").innerHTML = html;
+    document.getElementById("scanPreviewCalBtn").addEventListener("click", function () {
+      // Hide the preview while calibrating — both dialogs share a z-index, so leaving it up
+      // would sit on top of (and block) the mast-alignment dialog. Restored on close/save.
+      document.getElementById("scanPreviewDialog").classList.add("is-hidden");
+      openMastCalibrator(scan.id);
+    });
+    document.getElementById("scanPreviewDialog").classList.remove("is-hidden");
+  }
+
+  function closeScanPreview() {
+    scanPreviewId = null;
+    document.getElementById("scanPreviewDialog").classList.add("is-hidden");
+  }
+
+  document.getElementById("scanPreviewClose").addEventListener("click", closeScanPreview);
+  document.querySelector("#scanPreviewDialog .dialog__backdrop").addEventListener("click", closeScanPreview);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !document.getElementById("scanPreviewDialog").classList.contains("is-hidden")) {
+      closeScanPreview();
+    }
+  });
 
   // ---------- Overlay, mast-aligned ----------
 
@@ -785,6 +851,7 @@ import {
 
   document.getElementById("calClose").addEventListener("click", function () {
     document.getElementById("calDialog").classList.add("is-hidden");
+    if (scanPreviewId) document.getElementById("scanPreviewDialog").classList.remove("is-hidden");
   });
   document.getElementById("calClearBtn").addEventListener("click", function () {
     cal.points = [];
@@ -803,6 +870,7 @@ import {
         scan.mast = mast; // optimistic local update so the overlay/detail react immediately
         renderCompareData();
         renderOverlay();
+        if (scanPreviewId === scan.id) openScanPreview(scan.id);
         if (liveMode) {
           updateDoc(doc(db, COLLECTION, scan.id), { mast: mast }).catch(function (e) {
             console.error("Mast save failed", e);
