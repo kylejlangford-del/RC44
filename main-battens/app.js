@@ -788,7 +788,7 @@ import {
   // Builds one draggable TWS-range bar inside trackEl. `range` is {min,max} or null (not set yet).
   // onCommit(min, max) fires once, on pointerup (or on the initial tap that creates a range) — not
   // on every intermediate drag frame, so callers can save straight to Firestore from it.
-  function renderRangeTrack(trackEl, range, onCommit) {
+  function renderRangeTrack(trackEl, range, onCommit, onClear) {
     trackEl.innerHTML = "";
 
     var grid = document.createElement("div");
@@ -828,6 +828,18 @@ import {
     rightHandle.className = "xover-handle xover-handle--right";
     trackEl.appendChild(leftHandle);
     trackEl.appendChild(rightHandle);
+
+    var clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "xover-range__clear";
+    clearBtn.setAttribute("aria-label", "Clear this wind range");
+    clearBtn.textContent = "×";
+    clearBtn.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+    clearBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (onClear) onClear();
+    });
+    trackEl.appendChild(clearBtn);
 
     var cur = { min: range.min, max: range.max };
 
@@ -985,6 +997,10 @@ import {
 
       renderRangeTrack(track, store[r.id] || null, function (min, max) {
         store[r.id] = { min: min, max: max };
+        saveCrossover(boat);
+        renderXoverChart(boat);
+      }, function () {
+        delete store[r.id];
         saveCrossover(boat);
         renderXoverChart(boat);
       });
