@@ -3,7 +3,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import {
-  getFirestore, doc, onSnapshot, setDoc, getDoc, serverTimestamp
+  initializeFirestore, doc, onSnapshot, setDoc, getDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   getAuth, signInAnonymously, onAuthStateChanged
@@ -137,7 +137,10 @@ import {
   if (configured) {
     try {
       var app = initializeApp(cfg);
-      db = getFirestore(app);
+      // ignoreUndefinedProperties: without it, Firestore rejects the whole save whenever any
+      // optional batten field (colour/length/serial/manufacturer) is left blank — which is the
+      // common case when quickly adding a new batten — so the write silently fails.
+      db = initializeFirestore(app, { ignoreUndefinedProperties: true });
       var auth = getAuth(app);
       // Firestore rules require request.auth != null (locked to this app, not open to the
       // internet) — sign in anonymously first, invisibly, then start syncing.

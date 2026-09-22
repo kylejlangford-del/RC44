@@ -4,7 +4,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import {
-  getFirestore, doc, onSnapshot, setDoc, serverTimestamp
+  initializeFirestore, doc, onSnapshot, setDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   getAuth, signInAnonymously, onAuthStateChanged
@@ -89,7 +89,7 @@ import {
   if (configured) {
     try {
       var fbApp = initializeApp(cfg);
-      onboardDb = getFirestore(fbApp);
+      onboardDb = initializeFirestore(fbApp, { ignoreUndefinedProperties: true });
       var auth = getAuth(fbApp);
       onAuthStateChanged(auth, function (user) {
         if (user) {
