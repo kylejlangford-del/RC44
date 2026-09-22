@@ -811,6 +811,7 @@ select:focus, input:focus, textarea:focus {
   border-radius: 14px;
   padding: 14px 16px 10px;
   background: rgba(255,255,255,.015);
+  min-width: 0;
 }
 
 .metric-chart__title {
@@ -842,7 +843,7 @@ select:focus, input:focus, textarea:focus {
   display: inline-block;
 }
 
-.metric-chart svg { display: block; width: 100%; height: auto; }
+.metric-chart svg { display: block; width: 100%; max-width: 100%; height: auto; }
 .metric-chart .mchart-axis { stroke: var(--line); stroke-width: 1; }
 .metric-chart .mchart-axis-label { fill: var(--muted); font-size: 9px; font-family: Inter, sans-serif; }
 .metric-chart .mchart-value-label { fill: var(--muted-2); font-size: 9px; font-family: Inter, sans-serif; }

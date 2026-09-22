@@ -388,7 +388,7 @@
     function x(h) { return padL + (h - hMin) / (hMax - hMin) * plotW; }
     function y(v) { return padT + (1 - (v - vMin) / (vMax - vMin)) * plotH; }
 
-    var svg = "<svg viewBox='0 0 " + W + " " + H + "' preserveAspectRatio='xMidYMid meet'>";
+    var svg = "<svg width='" + W + "' height='" + H + "' viewBox='0 0 " + W + " " + H + "' preserveAspectRatio='xMidYMid meet'>";
 
     // Gridlines + axis labels (height %).
     heights.forEach(function (h) {
