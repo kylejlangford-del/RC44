@@ -412,11 +412,11 @@ import {
     ["exit", "Exit"], ["foreCam", "Fore cam"], ["backCam", "Back cam"]
   ];
 
-  // ---------- Flying shape targets (Gemera, Aug-25) ----------
+  // ---------- Flying shape targets (Aug-25) ----------
   // From the team's target tables: one set for the jib (applies to G1/J2/J3), one for the
-  // mainsail, each given at 25/50/75% height and in 2kn TWS bins from 6 to 20kn. Targets are
-  // only available for Gemera and only for camber/draft/foreCam/backCam — twist/entry/exit and
-  // Artemis scans have no target to compare against.
+  // mainsail, each given at 25/50/75% height and in 2kn TWS bins from 6 to 20kn. Same one-design
+  // targets apply to both boats. Only camber/draft/foreCam/backCam have target data — twist/entry/
+  // exit have no target to compare against.
   var TARGET_BINS = [6, 8, 10, 12, 14, 16, 18, 20];
   var TARGET_HEIGHTS = [25, 50, 75];
   var FLYING_SHAPE_TARGETS = {
@@ -447,10 +447,11 @@ import {
   }
 
   // Interpolates a target value for a scan's actual TWS between the two nearest 2kn bins
-  // (6..20kn). Returns null when there's nothing to compare against (Artemis, no TWS, a
-  // metric/height with no target data, or TWS entirely outside the 6-20kn target range).
+  // (6..20kn). Returns null when there's nothing to compare against (no TWS, a metric/height
+  // with no target data, or TWS entirely outside the 6-20kn target range). Same targets apply
+  // to both boats.
   function getTarget(scan, height, metricKey) {
-    if (!scan || scan.boat !== "gemera") return null;
+    if (!scan) return null;
     if (!scan.wind || scan.wind.tws === undefined || scan.wind.tws === null) return null;
     var table = FLYING_SHAPE_TARGETS[targetGroupFor(scan.sail || "Main")];
     if (!table) return null;
