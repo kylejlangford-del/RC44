@@ -86,9 +86,57 @@
       file.type === "application/zip" || file.type === "application/x-zip-compressed";
   }
 
-  // Expands any .zip archive (e.g. the export downloaded straight off the phone, before it's
-  // been unzipped) into its inner .csv entries, decoded the same ISO-8859-1 way as a plain CSV
-  // upload. Plain .csv files selected alongside/instead of a zip are read as-is.
+  function isGzFile(file) {
+    return /\.(gz|tgz)$/i.test(file.name || "") ||
+      file.type === "application/gzip" || file.type === "application/x-gzip";
+  }
+
+  // Decompresses a .gz file to raw bytes — the browser's native gzip support if it has it,
+  // falling back to the vendored pako library (older Safari/WebViews, e.g. an embedded browser
+  // launched from the phone's Files app, don't always have DecompressionStream).
+  async function gunzipToBytes(file) {
+    if (typeof DecompressionStream !== "undefined") {
+      try {
+        var stream = file.stream().pipeThrough(new DecompressionStream("gzip"));
+        var buf = await new Response(stream).arrayBuffer();
+        return new Uint8Array(buf);
+      } catch (e) { /* fall through to pako below */ }
+    }
+    if (typeof pako !== "undefined") {
+      return pako.ungzip(new Uint8Array(await file.arrayBuffer()));
+    }
+    throw new Error("Can't unzip .gz files in this browser — try updating it, or unzip the file first.");
+  }
+
+  // A .tar.gz (a gzipped bundle of several files, rather than a single gzipped CSV) decompresses
+  // to a plain (uncompressed) tar archive — this reads its file entries without needing a
+  // separate tar library, since the tar format itself is just fixed-size headers, no compression.
+  function readTarEntries(bytes) {
+    var entries = [];
+    var offset = 0;
+    while (offset + 512 <= bytes.length) {
+      var header = bytes.subarray(offset, offset + 512);
+      if (header.every(function (b) { return b === 0; })) break; // end-of-archive marker
+      var name = latin1Bytes(header.subarray(0, 100)).replace(/\0.*$/, "");
+      var sizeStr = latin1Bytes(header.subarray(124, 136)).replace(/\0.*$/, "").trim();
+      var size = parseInt(sizeStr, 8) || 0;
+      var typeFlag = String.fromCharCode(header[156] || 0);
+      offset += 512;
+      if (name && (typeFlag === "0" || typeFlag === "\0") && !/\/$/.test(name)) {
+        entries.push({ name: name, bytes: bytes.subarray(offset, offset + size) });
+      }
+      offset += Math.ceil(size / 512) * 512;
+    }
+    return entries;
+  }
+
+  function latin1Bytes(bytes) {
+    return new TextDecoder("iso-8859-1").decode(bytes);
+  }
+
+  // Expands any .zip/.gz/.tar.gz archive (e.g. the export downloaded straight off the phone,
+  // before it's been unzipped) into its inner .csv entries, decoded the same ISO-8859-1 way as a
+  // plain CSV upload. Plain .csv files selected alongside/instead of an archive are read as-is.
   async function collectCsvEntries(files) {
     var out = [];
     for (var i = 0; i < files.length; i++) {
@@ -103,7 +151,17 @@
         });
         for (var j = 0; j < names.length; j++) {
           var bytes = await zip.files[names[j]].async("uint8array");
-          out.push({ name: names[j], text: new TextDecoder("iso-8859-1").decode(bytes) });
+          out.push({ name: names[j], text: latin1Bytes(bytes) });
+        }
+      } else if (isGzFile(file)) {
+        var unzipped = await gunzipToBytes(file);
+        var looksLikeTar = unzipped.length > 262 &&
+          latin1Bytes(unzipped.subarray(257, 262)) === "ustar";
+        if (looksLikeTar || /\.tar\.gz$|\.tgz$/i.test(file.name || "")) {
+          var tarEntries = readTarEntries(unzipped).filter(function (e) { return /\.csv$/i.test(e.name); });
+          tarEntries.forEach(function (e) { out.push({ name: e.name, text: latin1Bytes(e.bytes) }); });
+        } else {
+          out.push({ name: (file.name || "log").replace(/\.gz$/i, ""), text: latin1Bytes(unzipped) });
         }
       } else {
         out.push({ name: file.name, text: await readFileAsLatin1(file) });
@@ -127,14 +185,14 @@
       entries = await collectCsvEntries(files);
     } catch (e) {
       console.error("Failed to read log files", e);
-      summaryEl.textContent = "Couldn't read that — check it's the CSV export or the .zip from your phone. (" + e.message + ")";
+      summaryEl.textContent = "Couldn't read that — check it's the CSV export, or the .zip/.gz from your phone. (" + e.message + ")";
       analyzeBtn.disabled = true;
       return;
     }
 
     if (!entries.length) {
-      var hadZip = files.some(isZipFile);
-      summaryEl.textContent = hadZip ? "No CSV files found inside that zip." : "No CSV files selected.";
+      var hadArchive = files.some(function (f) { return isZipFile(f) || isGzFile(f); });
+      summaryEl.textContent = hadArchive ? "No CSV files found inside that." : "No CSV files selected.";
       analyzeBtn.disabled = true;
       return;
     }

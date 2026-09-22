@@ -40,14 +40,14 @@
       <section class="panel" style="margin:20px 0 24px;">
         <div class="section-kicker">1. Log file</div>
         <p class="import-step__hint">
-          Select the .zip export downloaded straight off your phone — the page unzips it and
-          reads the CSVs inside, no need to unzip it yourself first. You can also select one or
-          more already-unzipped CSV files directly (a session is often split into several
+          Select the .zip or .gz export downloaded straight off your phone — the page unzips it
+          and reads the CSVs inside, no need to unzip it yourself first. You can also select one
+          or more already-unzipped CSV files directly (a session is often split into several
           numbered files — select them all at once).
         </p>
         <label class="file-drop">
-          <input id="csvInput" type="file" accept=".zip,.csv,text/csv,application/zip,application/x-zip-compressed" multiple />
-          <span>Choose .zip or CSV file(s)…</span>
+          <input id="csvInput" type="file" accept=".zip,.gz,.tgz,.csv,text/csv,application/zip,application/x-zip-compressed,application/gzip,application/x-gzip" multiple />
+          <span>Choose .zip, .gz or CSV file(s)…</span>
         </label>
         <div id="csvSummary" class="import-summary is-hidden"></div>
       </section>
@@ -109,6 +109,7 @@
   </main>
 
   <script src="../vendor/jszip.min.js?v=20260922a"></script>
+  <script src="../vendor/pako_inflate.min.js?v=20260922a"></script>
   <script src="./app.js?v=20260922a"></script>
 </body>
 </html>
