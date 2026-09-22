@@ -81,6 +81,37 @@
     });
   }
 
+  function isZipFile(file) {
+    return /\.zip$/i.test(file.name || "") ||
+      file.type === "application/zip" || file.type === "application/x-zip-compressed";
+  }
+
+  // Expands any .zip archive (e.g. the export downloaded straight off the phone, before it's
+  // been unzipped) into its inner .csv entries, decoded the same ISO-8859-1 way as a plain CSV
+  // upload. Plain .csv files selected alongside/instead of a zip are read as-is.
+  async function collectCsvEntries(files) {
+    var out = [];
+    for (var i = 0; i < files.length; i++) {
+      var file = files[i];
+      if (isZipFile(file)) {
+        if (typeof JSZip === "undefined") throw new Error("Zip support failed to load — reload the page and try again.");
+        var buf = await file.arrayBuffer();
+        var zip = await JSZip.loadAsync(buf);
+        var names = Object.keys(zip.files).filter(function (name) {
+          var entry = zip.files[name];
+          return entry && !entry.dir && /\.csv$/i.test(name);
+        });
+        for (var j = 0; j < names.length; j++) {
+          var bytes = await zip.files[names[j]].async("uint8array");
+          out.push({ name: names[j], text: new TextDecoder("iso-8859-1").decode(bytes) });
+        }
+      } else {
+        out.push({ name: file.name, text: await readFileAsLatin1(file) });
+      }
+    }
+    return out;
+  }
+
   var fileInput = document.getElementById("csvInput");
   var summaryEl = document.getElementById("csvSummary");
   var analyzeBtn = document.getElementById("analyzeBtn");
@@ -88,17 +119,31 @@
   fileInput.addEventListener("change", async function () {
     var files = Array.from(fileInput.files || []);
     if (!files.length) return;
-    var rows = [];
     summaryEl.textContent = "Reading " + files.length + " file(s)…";
     summaryEl.classList.remove("is-hidden");
-    for (var i = 0; i < files.length; i++) {
-      rows = rows.concat([]); // no-op, keep var
-      var text = await readFileAsLatin1(files[i]);
-      parseCsvText(text, rows);
+
+    var entries;
+    try {
+      entries = await collectCsvEntries(files);
+    } catch (e) {
+      console.error("Failed to read log files", e);
+      summaryEl.textContent = "Couldn't read that — check it's the CSV export or the .zip from your phone. (" + e.message + ")";
+      analyzeBtn.disabled = true;
+      return;
     }
+
+    if (!entries.length) {
+      var hadZip = files.some(isZipFile);
+      summaryEl.textContent = hadZip ? "No CSV files found inside that zip." : "No CSV files selected.";
+      analyzeBtn.disabled = true;
+      return;
+    }
+
+    var rows = [];
+    entries.forEach(function (e) { parseCsvText(e.text, rows); });
     rows.sort(function (a, b) { return (a.timeRaw || "").localeCompare(b.timeRaw || ""); });
     rowsByBoat[currentBoat] = rows;
-    summaryEl.textContent = files.length + " file(s) loaded · " + rows.length.toLocaleString() + " samples";
+    summaryEl.textContent = entries.length + " CSV file(s) loaded · " + rows.length.toLocaleString() + " samples";
     analyzeBtn.disabled = rows.length === 0;
   });
 
