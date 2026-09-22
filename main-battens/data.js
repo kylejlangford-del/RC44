@@ -1,8 +1,6 @@
-/* RC44 Main Batten inventory — reseeded from the Artemis and Gemera batten spreadsheets on 2026-09-21.
- * Battens are now grouped per mainsail (Artemis: M12 / M13, Gemera: M1 / M2) since the usable
- * inventory changes with which main is bent on. This file is the source of truth once you start
- * editing through the page; leftover/retired battens from the sheets were intentionally left out.
- * Structure: BATTEN_DATA[boat].bySail[mainsail][position] = { installed: <battenId|null>, battens: [...] }
+/* RC44 Main Batten inventory. Structure: BATTEN_DATA[boat].bySail[mainsail][position] = { installed: <battenId|null>, battens: [...] }
+ * Artemis inventory refreshed 2026-09-22 from the Artemis batten spreadsheet (Google Sheet). Gemera unchanged.
+ * This file is the seed/fallback; the live site's actual data lives in Firestore once synced through the page.
  */
 window.BATTEN_DATA = {
   "artemis": {
@@ -17,9 +15,9 @@ window.BATTEN_DATA = {
           "installed": null,
           "battens": [
             {
-              "id": "art-m12-1-soft",
-              "name": "Artemis SOFT MN #1",
-              "ei": 160,
+              "id": "art-m12-1-artemis-ap-mn-1",
+              "name": "Artemis AP MN #1",
+              "ei": 219,
               "notes": "",
               "manufacturer": "C Tech"
             },
@@ -27,6 +25,27 @@ window.BATTEN_DATA = {
               "id": "art-m12-1-lt",
               "name": "Artemis LT MN#1",
               "ei": 184,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m12-1-artemis-mn-ap-1",
+              "name": "Artemis MN AP #1",
+              "ei": 219,
+              "notes": "Brennen sail test",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m12-1-soft",
+              "name": "Artemis SOFT MN #1",
+              "ei": 160,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m12-1-artemis-stiff-mn-1",
+              "name": "Artemis STIFF MN #1",
+              "ei": 220,
               "notes": "",
               "manufacturer": "C Tech"
             },
@@ -55,6 +74,27 @@ window.BATTEN_DATA = {
               "manufacturer": "C Tech"
             },
             {
+              "id": "art-m12-2-artemis-mn-stiff-2",
+              "name": "Artemis MN Stiff #2",
+              "ei": 82,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m12-2-artemis-mn-ap-2",
+              "name": "Artemis MN AP #2",
+              "ei": 64,
+              "notes": "Brennen sail test",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m12-2-artemis-mn-soft-2",
+              "name": "Artemis MN Soft #2",
+              "ei": 50,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
+            {
               "id": "art-m12-2-b2stiff",
               "name": "Artemis MN #B2 StIff",
               "ei": 152,
@@ -68,6 +108,13 @@ window.BATTEN_DATA = {
               "notes": ""
             },
             {
+              "id": "art-m12-2-artemis-2",
+              "name": "Artemis #2",
+              "ei": 67,
+              "notes": "Untapered",
+              "manufacturer": "C Tech"
+            },
+            {
               "id": "art-m12-2-mn2",
               "name": "Artemis MN#2",
               "ei": 90,
@@ -79,6 +126,33 @@ window.BATTEN_DATA = {
         "3": {
           "installed": null,
           "battens": [
+            {
+              "id": "art-m12-3-artemis-mn3",
+              "name": "Artemis MN3",
+              "ei": 85,
+              "notes": ""
+            },
+            {
+              "id": "art-m12-3-artemis-mn-ap-3",
+              "name": "Artemis MN AP #3",
+              "ei": 122,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m12-3-artemis-mn-stiff-3",
+              "name": "Artemis MN STIFF #3",
+              "ei": 137,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m12-3-artemis-mn-ap-3-2",
+              "name": "Artemis MN AP #3",
+              "ei": 122,
+              "notes": "Brennen sail test",
+              "manufacturer": "C Tech"
+            },
             {
               "id": "art-m12-3-b3stiff",
               "name": "Artemis MN #B3 Stiff",
@@ -107,6 +181,20 @@ window.BATTEN_DATA = {
           "installed": null,
           "battens": [
             {
+              "id": "art-m12-4-artemis-mn-ap-4",
+              "name": "Artemis MN AP #4",
+              "ei": 150,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m12-4-artemis-mn-ap-4-2",
+              "name": "Artemis MN AP #4",
+              "ei": 150,
+              "notes": "Brennen sail test",
+              "manufacturer": "C Tech"
+            },
+            {
               "id": "art-m12-4-hvy",
               "name": "Artemis MN HVY #4",
               "ei": 174,
@@ -124,6 +212,20 @@ window.BATTEN_DATA = {
         "5": {
           "installed": null,
           "battens": [
+            {
+              "id": "art-m12-5-artemis-mn-ap-5",
+              "name": "Artemis MN AP #5",
+              "ei": 237,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m12-5-artemis-mn-ap-5-2",
+              "name": "Artemis MN AP #5",
+              "ei": 237,
+              "notes": "Brennen sail test",
+              "manufacturer": "C Tech"
+            },
             {
               "id": "art-m12-5-stiff",
               "name": "Artemis MN Stiff #5",
@@ -153,20 +255,28 @@ window.BATTEN_DATA = {
         },
         "6": {
           "installed": null,
-          "battens": []
+          "battens": [
+            {
+              "id": "art-m12-6-artemis-lt-mn-6",
+              "name": "Artemis LT MN #6",
+              "ei": 229,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m12-6-artemis-mn-ap-6",
+              "name": "Artemis MN AP #6",
+              "ei": 321,
+              "notes": "",
+              "manufacturer": "C Tech"
+            }
+          ]
         }
       },
       "M13": {
         "1": {
           "installed": null,
           "battens": [
-            {
-              "id": "art-m13-1-ap",
-              "name": "Artemis AP MN #1",
-              "ei": 236,
-              "notes": "",
-              "manufacturer": "C Tech"
-            },
             {
               "id": "art-m13-1-lt",
               "name": "Artemis LT MN#1",
@@ -175,10 +285,38 @@ window.BATTEN_DATA = {
               "manufacturer": "C Tech"
             },
             {
+              "id": "art-m13-1-artemis-mn-ap-1",
+              "name": "Artemis MN AP #1",
+              "ei": 219,
+              "notes": "Brennen sail test",
+              "manufacturer": "C Tech"
+            },
+            {
               "id": "art-m13-1-stiff",
               "name": "Artemis stiff #1",
               "ei": 220,
               "notes": ""
+            },
+            {
+              "id": "art-m13-1-artemis-hvy-mn-1",
+              "name": "Artemis HVY MN #1",
+              "ei": 233,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m13-1-ap",
+              "name": "Artemis AP MN #1",
+              "ei": 236,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m13-1-artemis-lt-mn-1",
+              "name": "Artemis LT MN #1",
+              "ei": 184,
+              "notes": "",
+              "manufacturer": "C Tech"
             }
           ]
         },
@@ -189,6 +327,26 @@ window.BATTEN_DATA = {
               "id": "art-m13-2-mn2b",
               "name": "ArtemisMN2",
               "ei": 48,
+              "notes": ""
+            },
+            {
+              "id": "art-m13-2-artemis-mn-ap-2",
+              "name": "Artemis MN AP #2",
+              "ei": 64,
+              "notes": "Brennen sail test",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m13-2-artemis-2",
+              "name": "Artemis #2",
+              "ei": 67,
+              "notes": "Untapered",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m13-2-homemade",
+              "name": "Homemade?",
+              "ei": null,
               "notes": ""
             },
             {
@@ -206,17 +364,17 @@ window.BATTEN_DATA = {
               "manufacturer": "C Tech"
             },
             {
-              "id": "art-m13-2-hvy",
-              "name": "Artemis HVY MN #2",
-              "ei": 91,
-              "notes": "",
-              "manufacturer": "C Tech"
-            },
-            {
               "id": "art-m13-2-mn2",
               "name": "Artemis MN#2",
               "ei": 90,
               "notes": "Untapered",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m13-2-hvy",
+              "name": "Artemis HVY MN #2",
+              "ei": 91,
+              "notes": "",
               "manufacturer": "C Tech"
             }
           ]
@@ -229,6 +387,26 @@ window.BATTEN_DATA = {
               "name": "RC44#3",
               "ei": 92,
               "notes": "Untapered"
+            },
+            {
+              "id": "art-m13-3-artemis-mn3",
+              "name": "Artemis MN3",
+              "ei": 85,
+              "notes": ""
+            },
+            {
+              "id": "art-m13-3-artemis-mn-ap-3",
+              "name": "Artemis MN AP #3",
+              "ei": 122,
+              "notes": "Brennen sail test",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m13-3-homemade",
+              "name": "Homemade?",
+              "ei": null,
+              "notes": "",
+              "manufacturer": "C Tech"
             },
             {
               "id": "art-m13-3-rc44-164",
@@ -263,6 +441,13 @@ window.BATTEN_DATA = {
           "installed": null,
           "battens": [
             {
+              "id": "art-m13-4-artemis-mn-ap-4",
+              "name": "Artemis MN AP #4",
+              "ei": 150,
+              "notes": "Brennen sail test",
+              "manufacturer": "C Tech"
+            },
+            {
               "id": "art-m13-4-stiff",
               "name": "Artemis Stiff MN#4",
               "ei": 154,
@@ -274,12 +459,41 @@ window.BATTEN_DATA = {
               "name": "RC44#4",
               "ei": 186,
               "notes": ""
+            },
+            {
+              "id": "art-m13-4-artemis-ap-mn-4",
+              "name": "Artemis AP MN#4",
+              "ei": 158,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m13-4-4-heavy",
+              "name": "#4 Heavy",
+              "ei": null,
+              "notes": "Think this is your current stiff home made, need to test EI",
+              "manufacturer": "HCB",
+              "serial": "12x24C"
             }
           ]
         },
         "5": {
           "installed": null,
           "battens": [
+            {
+              "id": "art-m13-5-artemis-mn-ap-5",
+              "name": "Artemis MN AP #5",
+              "ei": 237,
+              "notes": "Brennen sail test",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m13-5-artemis-5",
+              "name": "Artemis #5",
+              "ei": null,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
             {
               "id": "art-m13-5-ap",
               "name": "Artemis AP MN#5",
@@ -329,6 +543,34 @@ window.BATTEN_DATA = {
               "name": "Artemis MN#6",
               "ei": 233,
               "notes": ""
+            },
+            {
+              "id": "art-m13-6-artemis-ap-mn-6",
+              "name": "Artemis AP MN#6",
+              "ei": 333,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m13-6-artemis-soft-mn-6",
+              "name": "Artemis SOFT MN#6",
+              "ei": 210,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m13-6-artemis-stiff-mn-6",
+              "name": "Artemis Stiff MN#6",
+              "ei": 317,
+              "notes": "",
+              "manufacturer": "C Tech"
+            },
+            {
+              "id": "art-m13-6-artemis-heavy-mn-6",
+              "name": "Artemis Heavy MN#6",
+              "ei": 338,
+              "notes": "",
+              "manufacturer": "C Tech"
             }
           ]
         }
