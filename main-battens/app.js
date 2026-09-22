@@ -690,6 +690,32 @@ import {
 
     var anyRowShown = false;
 
+    // Chocks/rake/rig set up/lift off apply to the whole boat's mainsail, so they get one row
+    // here — shown above the per-position battens rows — rather than being repeated under
+    // every B1..B6 position.
+    if (customKindsWithData.length) {
+      anyRowShown = true;
+
+      var sharedRow = document.createElement("div");
+      sharedRow.className = "suggested-set-row";
+
+      var sharedHead = document.createElement("div");
+      sharedHead.className = "compare-row__head";
+      sharedHead.textContent = "Set up";
+      sharedRow.appendChild(sharedHead);
+
+      var sharedGroupsWrap = document.createElement("div");
+      sharedGroupsWrap.className = "suggested-set-groups";
+
+      customKindsWithData.forEach(function (k) {
+        var matches = findSharedSuggestions(boat, k, tws);
+        sharedGroupsWrap.appendChild(buildSuggestGroup(CUSTOM_KINDS[k].label, matches, null));
+      });
+
+      sharedRow.appendChild(sharedGroupsWrap);
+      wrap.appendChild(sharedRow);
+    }
+
     POSITIONS.forEach(function (pos) {
       var posX = sailObj && sailObj[pos];
       var hasBattenRanges = posX && posX.battens && Object.keys(posX.battens).length;
@@ -726,31 +752,6 @@ import {
       row.appendChild(groupsWrap);
       wrap.appendChild(row);
     });
-
-    // Chocks/rake/rig set up/lift off apply to the whole boat's mainsail, so they get one row
-    // here rather than being repeated under every B1..B6 position.
-    if (customKindsWithData.length) {
-      anyRowShown = true;
-
-      var sharedRow = document.createElement("div");
-      sharedRow.className = "suggested-set-row";
-
-      var sharedHead = document.createElement("div");
-      sharedHead.className = "compare-row__head";
-      sharedHead.textContent = "Set up";
-      sharedRow.appendChild(sharedHead);
-
-      var sharedGroupsWrap = document.createElement("div");
-      sharedGroupsWrap.className = "suggested-set-groups";
-
-      customKindsWithData.forEach(function (k) {
-        var matches = findSharedSuggestions(boat, k, tws);
-        sharedGroupsWrap.appendChild(buildSuggestGroup(CUSTOM_KINDS[k].label, matches, null));
-      });
-
-      sharedRow.appendChild(sharedGroupsWrap);
-      wrap.appendChild(sharedRow);
-    }
 
     if (!anyRowShown) {
       var empty = document.createElement("p");
