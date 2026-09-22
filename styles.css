@@ -1361,6 +1361,9 @@ select:focus, input:focus, textarea:focus {
 
 .compare-row__suggest button:hover { border-color: var(--line-strong); }
 
+.suggested-set-list { margin-top: 16px; }
+.suggested-set-list .compare-row:last-child { border-bottom: none; }
+
 /* ---- Crossover (wind-range charts) ---- */
 
 .xover-subtabs {
@@ -1501,12 +1504,12 @@ select:focus, input:focus, textarea:focus {
   position: absolute;
   top: -3px;
   bottom: -3px;
-  width: 16px;
+  width: 22px;
+  margin-left: -11px;
   cursor: ew-resize;
+  z-index: 2;
+  touch-action: none;
 }
-
-.xover-handle--left { left: -8px; }
-.xover-handle--right { right: -8px; }
 
 .xover-handle::after {
   content: "";

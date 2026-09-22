@@ -340,6 +340,7 @@ import {
     renderSailToggles();
     render();
     renderCompare();
+    renderSuggestedSet();
     if (currentView === "inventory") renderFullInventory();
     if (currentView === "crossover") renderCrossoverAll();
   }
@@ -413,12 +414,6 @@ import {
   function renderCompare() {
     var list = document.getElementById("compareList");
     list.innerHTML = "";
-
-    var suggestInput = document.getElementById("suggestTws");
-    var tws = suggestInput ? parseFloat(suggestInput.value) : NaN;
-    var hasTws = !isNaN(tws);
-    var suggestHint = document.getElementById("suggestHint");
-    if (suggestHint) suggestHint.classList.toggle("is-hidden", !hasTws);
 
     // Auto-scale colour intensity to the biggest EI gap among the 6 positions right now.
     var deltas = {};
@@ -498,42 +493,115 @@ import {
       }
       row.appendChild(result);
 
-      if (hasTws) {
-        var sugWrap = document.createElement("div");
-        sugWrap.className = "compare-row__suggest";
-        BOATS.forEach(function (boat) {
-          var sail = currentSail[boat];
-          var posX = crossoverData[boat].bySail[sail] && crossoverData[boat].bySail[sail][pos];
-          if (!posX) return;
-          var matchId = null, matchB = null;
-          Object.keys(posX.battens).forEach(function (id) {
-            var r = posX.battens[id];
-            if (tws >= r.min && tws <= r.max) {
-              var cand = findBatten(boat, pos, id);
-              if (cand && !cand.decommissioned) { matchId = id; matchB = cand; }
-            }
-          });
-          if (matchB) {
-            var sugBtn = document.createElement("button");
-            sugBtn.type = "button";
-            var already = slotsFor(boat)[pos].installed === matchId;
-            sugBtn.textContent = (boat === "artemis" ? "Artemis" : "Gemera") + " → " + matchB.name +
-              " (" + eiLabel(matchB.ei) + ")" + (already ? " ✓" : "");
-            sugBtn.addEventListener("click", function () {
-              slotsFor(boat)[pos].installed = matchId;
-              saveBoat(boat);
-              render();
-              renderCompare();
-            });
-            sugWrap.appendChild(sugBtn);
-          }
-        });
-        if (sugWrap.children.length) row.appendChild(sugWrap);
-      }
-
       list.appendChild(row);
     });
   }
+
+  // ---------- Suggested batten set (TWS-based, below the comparison) ----------
+
+  function findSuggestion(boat, pos, tws) {
+    var sail = currentSail[boat];
+    var posX = crossoverData[boat].bySail[sail] && crossoverData[boat].bySail[sail][pos];
+    if (!posX) return null;
+    var matchId = null, matchB = null;
+    Object.keys(posX.battens).forEach(function (id) {
+      var r = posX.battens[id];
+      if (tws >= r.min && tws <= r.max) {
+        var cand = findBatten(boat, pos, id);
+        if (cand && !cand.decommissioned) { matchId = id; matchB = cand; }
+      }
+    });
+    return matchB ? { id: matchId, batten: matchB } : null;
+  }
+
+  function renderSuggestedSet() {
+    var wrap = document.getElementById("suggestedSetList");
+    var suggestHint = document.getElementById("suggestHint");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+
+    var suggestInput = document.getElementById("suggestTws");
+    var tws = suggestInput ? parseFloat(suggestInput.value) : NaN;
+    var hasTws = !isNaN(tws);
+
+    if (!hasTws) {
+      if (suggestHint) suggestHint.classList.add("is-hidden");
+      return;
+    }
+
+    var anyRanges = POSITIONS.some(function (pos) {
+      return BOATS.some(function (boat) {
+        var sail = currentSail[boat];
+        var posX = crossoverData[boat].bySail[sail] && crossoverData[boat].bySail[sail][pos];
+        return posX && Object.keys(posX.battens).length;
+      });
+    });
+    if (suggestHint) suggestHint.classList.toggle("is-hidden", anyRanges);
+
+    POSITIONS.forEach(function (pos) {
+      var row = document.createElement("div");
+      row.className = "compare-row";
+
+      var head = document.createElement("div");
+      head.className = "compare-row__head";
+      head.textContent = "B" + pos;
+      row.appendChild(head);
+
+      var any = false;
+      BOATS.forEach(function (boat) {
+        var match = findSuggestion(boat, pos, tws);
+        var boatWrap = document.createElement("div");
+        boatWrap.className = "compare-row__boat";
+
+        var label = document.createElement("span");
+        label.className = "compare-row__boat-label";
+        label.textContent = boat === "artemis" ? "Artemis" : "Gemera";
+        boatWrap.appendChild(label);
+
+        var name = document.createElement("span");
+        name.className = "compare-row__name";
+        name.textContent = match ? match.batten.name : "—";
+        boatWrap.appendChild(name);
+
+        if (match) {
+          any = true;
+          var eiPill = document.createElement("span");
+          eiPill.className = "compare-row__ei";
+          eiPill.textContent = eiLabel(match.batten.ei);
+          boatWrap.appendChild(eiPill);
+        }
+
+        row.appendChild(boatWrap);
+      });
+
+      var result = document.createElement("div");
+      result.className = "compare-row__result compare-row__suggest";
+      BOATS.forEach(function (boat) {
+        var match = findSuggestion(boat, pos, tws);
+        if (!match) return;
+        var already = slotsFor(boat)[pos].installed === match.id;
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = "Use for " + (boat === "artemis" ? "Artemis" : "Gemera") + (already ? " ✓" : "");
+        btn.addEventListener("click", function () {
+          slotsFor(boat)[pos].installed = match.id;
+          saveBoat(boat);
+          render();
+          renderCompare();
+          renderSuggestedSet();
+        });
+        result.appendChild(btn);
+      });
+      row.appendChild(result);
+
+      if (!any) row.style.opacity = ".55";
+
+      wrap.appendChild(row);
+    });
+  }
+
+  var suggestTwsInput = document.getElementById("suggestTws");
+  if (suggestTwsInput) suggestTwsInput.addEventListener("input", renderSuggestedSet);
 
   // ---------- Full inventory view ----------
 
