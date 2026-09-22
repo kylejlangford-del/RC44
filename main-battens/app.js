@@ -72,10 +72,51 @@ import {
     if (!bySail[sail][pos]) bySail[sail][pos] = { battens: {} };
     var slot = bySail[sail][pos];
     if (!slot.battens) slot.battens = {};
-    Object.keys(CUSTOM_KINDS).forEach(function (k) {
-      if (!slot[k]) slot[k] = { defs: [], ranges: {} };
-    });
     return slot;
+  }
+
+  // Chocks/rake/rig set up/lift off apply across the whole boat's mainsail, not to an individual
+  // batten position, so they live once per boat/sail rather than once per B1..B6 slot.
+  function ensureXoverShared(boat, sail) {
+    var bySail = crossoverData[boat].bySail;
+    if (!bySail[sail]) bySail[sail] = {};
+    if (!bySail[sail].shared) bySail[sail].shared = {};
+    var shared = bySail[sail].shared;
+    Object.keys(CUSTOM_KINDS).forEach(function (k) {
+      if (!shared[k]) shared[k] = { defs: [], ranges: {} };
+    });
+    return shared;
+  }
+
+  // One-time migration: earlier versions stored chocks/rake/rigsetup/liftoff per B1..B6 position.
+  // Fold any such data into the new shared (boat/sail-wide) slot so nothing already entered is lost.
+  function migrateSharedCrossover(boat) {
+    var bySail = crossoverData[boat].bySail;
+    var changed = false;
+    Object.keys(bySail).forEach(function (sail) {
+      var sailObj = bySail[sail];
+      if (!sailObj || typeof sailObj !== "object") return;
+      var shared = ensureXoverShared(boat, sail);
+      POSITIONS.forEach(function (pos) {
+        var posObj = sailObj[pos];
+        if (!posObj) return;
+        Object.keys(CUSTOM_KINDS).forEach(function (k) {
+          var posKind = posObj[k];
+          if (posKind && posKind.defs && posKind.defs.length) {
+            posKind.defs.forEach(function (d) {
+              var already = shared[k].defs.some(function (e) { return e.id === d.id; });
+              if (!already) {
+                shared[k].defs.push(d);
+                if (posKind.ranges && posKind.ranges[d.id]) shared[k].ranges[d.id] = posKind.ranges[d.id];
+              }
+            });
+            delete posObj[k];
+            changed = true;
+          }
+        });
+      });
+    });
+    return changed;
   }
 
   // ---------- Editor name ----------
@@ -126,6 +167,9 @@ import {
     if (raw) { try { data = JSON.parse(raw); } catch (e) { /* ignore */ } }
     var xraw = safeGet(XOVER_STORAGE_KEY);
     if (xraw) { try { crossoverData = JSON.parse(xraw); } catch (e) { /* ignore */ } }
+    var xMigrated = false;
+    BOATS.forEach(function (boat) { if (migrateSharedCrossover(boat)) xMigrated = true; });
+    if (xMigrated) persistCrossoverLocal();
     renderAll();
   }
 
@@ -186,7 +230,9 @@ import {
         var d = snap.data();
         crossoverData[boat].bySail = d.bySail || crossoverData[boat].bySail;
       }
+      if (migrateSharedCrossover(boat)) saveCrossover(boat);
       if (currentView === "crossover") renderXoverChart(boat);
+      if (currentView === "comparison") renderSuggestedSet();
     }, function (err) {
       console.error("Crossover sync error for " + boat, err);
     });
@@ -520,33 +566,37 @@ import {
   }
 
   // ---------- Suggested set up (TWS-based, below the comparison) ----------
-  // For a given boat/position/kind, returns EVERY item whose Crossover wind range covers the
-  // TWS entered — there can be more than one (e.g. two battens with overlapping ranges).
+  // Returns EVERY batten in a boat/position whose Crossover wind range covers the TWS entered —
+  // there can be more than one (e.g. two battens with overlapping ranges).
 
-  function findSuggestions(boat, pos, tws, kind) {
+  function findBattenSuggestions(boat, pos, tws) {
     var sail = currentSail[boat];
     var posX = crossoverData[boat].bySail[sail] && crossoverData[boat].bySail[sail][pos];
     if (!posX) return [];
     var results = [];
-    if (kind === "battens") {
-      var battenRanges = posX.battens || {};
-      Object.keys(battenRanges).forEach(function (id) {
-        var r = battenRanges[id];
-        if (tws >= r.min && tws <= r.max) {
-          var cand = findBatten(boat, pos, id);
-          if (cand && !cand.decommissioned) results.push({ id: id, label: cand.name, sub: eiLabel(cand.ei), ei: cand.ei });
-        }
-      });
-      results = sortByEi(results.map(function (r) { return { ei: r.ei, id: r.id, label: r.label, sub: r.sub }; }));
-    } else {
-      var kindData = posX[kind];
-      if (!kindData) return [];
-      var ranges = kindData.ranges || {};
-      (kindData.defs || []).forEach(function (d) {
-        var r = ranges[d.id];
-        if (r && tws >= r.min && tws <= r.max) results.push({ id: d.id, label: d.name, sub: "" });
-      });
-    }
+    var battenRanges = posX.battens || {};
+    Object.keys(battenRanges).forEach(function (id) {
+      var r = battenRanges[id];
+      if (tws >= r.min && tws <= r.max) {
+        var cand = findBatten(boat, pos, id);
+        if (cand && !cand.decommissioned) results.push({ id: id, label: cand.name, sub: eiLabel(cand.ei), ei: cand.ei });
+      }
+    });
+    return sortByEi(results);
+  }
+
+  // Chocks/rake/rig set up/lift off are boat/sail-wide (not per position) — same idea, no `pos`.
+  function findSharedSuggestions(boat, kind, tws) {
+    var sail = currentSail[boat];
+    var sailObj = crossoverData[boat].bySail[sail];
+    var kindData = sailObj && sailObj.shared && sailObj.shared[kind];
+    if (!kindData) return [];
+    var ranges = kindData.ranges || {};
+    var results = [];
+    (kindData.defs || []).forEach(function (d) {
+      var r = ranges[d.id];
+      if (r && tws >= r.min && tws <= r.max) results.push({ id: d.id, label: d.name, sub: "" });
+    });
     return results;
   }
 
@@ -627,26 +677,24 @@ import {
     }
 
     var sail = currentSail[boat];
-    var anyRanges = POSITIONS.some(function (pos) {
-      var posX = crossoverData[boat].bySail[sail] && crossoverData[boat].bySail[sail][pos];
-      if (!posX) return false;
-      if (posX.battens && Object.keys(posX.battens).length) return true;
-      return Object.keys(CUSTOM_KINDS).some(function (k) {
-        return posX[k] && posX[k].defs && posX[k].defs.length;
-      });
+    var sailObj = crossoverData[boat].bySail[sail];
+    var customKindsWithData = Object.keys(CUSTOM_KINDS).filter(function (k) {
+      return sailObj && sailObj.shared && sailObj.shared[k] && sailObj.shared[k].defs && sailObj.shared[k].defs.length;
     });
+    var anyBattenRanges = POSITIONS.some(function (pos) {
+      var posX = sailObj && sailObj[pos];
+      return posX && posX.battens && Object.keys(posX.battens).length;
+    });
+    var anyRanges = anyBattenRanges || customKindsWithData.length > 0;
     if (suggestHint) suggestHint.classList.toggle("is-hidden", anyRanges);
 
     var anyRowShown = false;
 
     POSITIONS.forEach(function (pos) {
-      var posX = crossoverData[boat].bySail[sail] && crossoverData[boat].bySail[sail][pos];
+      var posX = sailObj && sailObj[pos];
       var hasBattenRanges = posX && posX.battens && Object.keys(posX.battens).length;
-      var customKindsWithData = Object.keys(CUSTOM_KINDS).filter(function (k) {
-        return posX && posX[k] && posX[k].defs && posX[k].defs.length;
-      });
+      if (!hasBattenRanges) return; // nothing configured for this position
 
-      if (!hasBattenRanges && !customKindsWithData.length) return; // nothing configured for this position at all
       anyRowShown = true;
 
       var row = document.createElement("div");
@@ -660,31 +708,49 @@ import {
       var groupsWrap = document.createElement("div");
       groupsWrap.className = "suggested-set-groups";
 
-      if (hasBattenRanges) {
-        var battenMatches = findSuggestions(boat, pos, tws, "battens");
-        groupsWrap.appendChild(buildSuggestGroup("Battens", battenMatches, function (m) {
-          var already = slotsFor(boat)[pos].installed === m.id;
-          return {
-            already: already,
-            onUse: function () {
-              slotsFor(boat)[pos].installed = m.id;
-              saveBoat(boat);
-              render();
-              renderCompare();
-              renderSuggestedSet();
-            }
-          };
-        }));
-      }
-
-      customKindsWithData.forEach(function (k) {
-        var matches = findSuggestions(boat, pos, tws, k);
-        groupsWrap.appendChild(buildSuggestGroup(CUSTOM_KINDS[k].label, matches, null));
-      });
+      var battenMatches = findBattenSuggestions(boat, pos, tws);
+      groupsWrap.appendChild(buildSuggestGroup("Battens", battenMatches, function (m) {
+        var already = slotsFor(boat)[pos].installed === m.id;
+        return {
+          already: already,
+          onUse: function () {
+            slotsFor(boat)[pos].installed = m.id;
+            saveBoat(boat);
+            render();
+            renderCompare();
+            renderSuggestedSet();
+          }
+        };
+      }));
 
       row.appendChild(groupsWrap);
       wrap.appendChild(row);
     });
+
+    // Chocks/rake/rig set up/lift off apply to the whole boat's mainsail, so they get one row
+    // here rather than being repeated under every B1..B6 position.
+    if (customKindsWithData.length) {
+      anyRowShown = true;
+
+      var sharedRow = document.createElement("div");
+      sharedRow.className = "suggested-set-row";
+
+      var sharedHead = document.createElement("div");
+      sharedHead.className = "compare-row__head";
+      sharedHead.textContent = "Set up";
+      sharedRow.appendChild(sharedHead);
+
+      var sharedGroupsWrap = document.createElement("div");
+      sharedGroupsWrap.className = "suggested-set-groups";
+
+      customKindsWithData.forEach(function (k) {
+        var matches = findSharedSuggestions(boat, k, tws);
+        sharedGroupsWrap.appendChild(buildSuggestGroup(CUSTOM_KINDS[k].label, matches, null));
+      });
+
+      sharedRow.appendChild(sharedGroupsWrap);
+      wrap.appendChild(sharedRow);
+    }
 
     if (!anyRowShown) {
       var empty = document.createElement("p");
@@ -852,11 +918,11 @@ import {
         wrap.querySelectorAll(".xover-subtab__btn").forEach(function (b) { b.classList.toggle("is-active", b === btn); });
         xoverKind[boat] = btn.dataset.xoverKind;
         renderXoverChart(boat);
-        // Switching kind can drastically shorten/lengthen the panel (e.g. Battens' several rows vs
-        // an empty Chocks list) — keep the B1..B6 position toggle in view so it doesn't seem to
-        // "disappear" just because the page reflowed out from under the user's scroll position.
-        var posToggle = document.querySelector('[data-xover-pos="' + boat + '"]');
-        if (posToggle) posToggle.scrollIntoView({ block: "nearest" });
+        // Battens is the only tab with a B1..B6 toggle — keep it in view when switching back to it.
+        if (xoverKind[boat] === "battens") {
+          var posToggle = document.querySelector('[data-xover-pos="' + boat + '"]');
+          if (posToggle) posToggle.scrollIntoView({ block: "nearest" });
+        }
       });
     });
   });
@@ -1008,9 +1074,19 @@ import {
     container.innerHTML = "";
 
     var sail = currentSail[boat], pos = currentXoverPos[boat] || 1, kind = xoverKind[boat] || "battens";
-    var slot = ensureXoverPos(boat, sail, pos);
-
     var custom = CUSTOM_KINDS[kind]; // undefined for "battens"
+
+    // The B1..B6 position toggle only means anything for battens — chocks, rake, rig set up and
+    // lift off apply to the whole boat/mainsail, not to an individual batten slot, so hide it.
+    var posToggleWrap = document.querySelector('[data-xover-pos="' + boat + '"]');
+    if (posToggleWrap) posToggleWrap.classList.toggle("is-hidden", !!custom);
+
+    var slot, shared;
+    if (custom) {
+      shared = ensureXoverShared(boat, sail);
+    } else {
+      slot = ensureXoverPos(boat, sail, pos);
+    }
 
     if (custom) {
       var addForm = document.createElement("form");
@@ -1030,7 +1106,7 @@ import {
         e.preventDefault();
         var name = addInput.value.trim();
         if (!name) return;
-        slot[kind].defs.push({ id: kind + "-" + Date.now().toString(36), name: name });
+        shared[kind].defs.push({ id: kind + "-" + Date.now().toString(36), name: name });
         saveCrossover(boat);
         renderXoverChart(boat);
       });
@@ -1064,19 +1140,19 @@ import {
       ? sortByEi(slotsFor(boat)[pos].battens.filter(function (b) { return !b.decommissioned; })).map(function (b) {
           return { id: b.id, label: b.name, sub: eiLabel(b.ei), removable: false };
         })
-      : slot[kind].defs.map(function (c) { return { id: c.id, label: c.name, sub: "", removable: true }; });
+      : shared[kind].defs.map(function (c) { return { id: c.id, label: c.name, sub: "", removable: true }; });
 
     if (!rows.length) {
       var empty = document.createElement("p");
       empty.className = "import-step__hint";
       empty.textContent = kind === "battens"
         ? "No battens in B" + pos + "'s " + sail + " inventory yet — add some under Full inventory."
-        : "No " + custom.noun + " added for B" + pos + " yet — add one above.";
+        : "No " + custom.noun + " added for " + data[boat].boatLabel + "'s " + sail + " yet — add one above.";
       chart.appendChild(empty);
       return;
     }
 
-    var store = kind === "battens" ? slot.battens : slot[kind].ranges;
+    var store = kind === "battens" ? slot.battens : shared[kind].ranges;
 
     rows.forEach(function (r) {
       var row = document.createElement("div");
@@ -1097,8 +1173,8 @@ import {
         rm.className = "text-link xover-row__remove";
         rm.textContent = "Remove";
         rm.addEventListener("click", function () {
-          slot[kind].defs = slot[kind].defs.filter(function (c) { return c.id !== r.id; });
-          delete slot[kind].ranges[r.id];
+          shared[kind].defs = shared[kind].defs.filter(function (c) { return c.id !== r.id; });
+          delete shared[kind].ranges[r.id];
           saveCrossover(boat);
           renderXoverChart(boat);
         });
