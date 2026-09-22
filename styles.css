@@ -797,6 +797,57 @@ select:focus, input:focus, textarea:focus {
   gap: 24px;
 }
 
+/* ---- Sail Shots: camber/draft/twist mini charts ---- */
+
+.metric-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  margin-top: 16px;
+}
+
+.metric-chart {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px 10px;
+  background: rgba(255,255,255,.015);
+}
+
+.metric-chart__title {
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.metric-chart__legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.metric-chart__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .74rem;
+  color: var(--muted-2);
+}
+
+.metric-chart__legend i {
+  width: 10px;
+  height: 2px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.metric-chart svg { display: block; width: 100%; height: auto; }
+.metric-chart .mchart-axis { stroke: var(--line); stroke-width: 1; }
+.metric-chart .mchart-axis-label { fill: var(--muted); font-size: 9px; font-family: Inter, sans-serif; }
+.metric-chart .mchart-value-label { fill: var(--muted-2); font-size: 9px; font-family: Inter, sans-serif; }
+.metric-chart .mchart-empty { color: var(--muted); font-size: .8rem; padding: 20px 0; text-align: center; }
+
 @media (max-width: 980px) {
   .split-view { grid-template-columns: 1fr; }
 }

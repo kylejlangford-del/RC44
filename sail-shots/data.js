@@ -1,7 +1,11 @@
 /* RC44 Sail Shots — scan library. Each entry is one sail-scan photo plus the numbers
- * that go with it, entered once through "Add scan" (the numbers aren't machine-readable
- * off the photo) and kept here from then on — same download/replace pattern as the
- * batten inventory.
+ * that go with it. "Add scan" reads most numbers straight off the photo's own burned-in
+ * data overlay (OCR, client-side) and pre-fills the form — you still pick the boat and
+ * sail and check the numbers before saving. Kept here from then on — same download/replace
+ * publish pattern as the batten inventory.
+ *
+ * sail: "Main" | "G1" | "J2" | "J3" — which sail the scan is of. Entries from before this
+ * field existed are treated as "Main" (they're all mainsail battens).
  *
  * mast: {x1,y1,x2,y2} — two points marking the mast line (top, then base/gooseneck),
  * as fractions (0-1) of the photo's natural width/height. Used to align and scale the
@@ -12,6 +16,7 @@ window.SAIL_SHOTS = [
   {
     id: "2026-06-27-141956-gemera-mn2",
     boat: "gemera",
+    sail: "Main",
     event: "",
     file: "./photos/2026-06-27_141956_gemera_mn2.jpg",
     time: "2026-06-27T14:19:56",
@@ -31,6 +36,7 @@ window.SAIL_SHOTS = [
   {
     id: "2026-06-27-112308-artemis-m12",
     boat: "artemis",
+    sail: "Main",
     event: "",
     file: "./photos/2026-06-27_112308_artemis_m12.jpg",
     time: "2026-06-27T11:23:08",
