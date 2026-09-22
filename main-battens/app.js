@@ -16,6 +16,7 @@ import {
   var XOVER_STORAGE_KEY = "rc44-crossover-data-v1"; // local-only fallback cache for Crossover
   var NAME_KEY = "rc44-battens-editor-name";
   var SAIL_KEY_PREFIX = "rc44-battens-sail-"; // per-boat, per-browser mainsail choice
+  var SUGGEST_BOAT_KEY = "rc44-suggest-boat"; // per-browser choice of which boat's suggested set to show (never synced)
   var POSITIONS = [1, 2, 3, 4, 5, 6];
   var BOATS = ["artemis", "gemera"];
   var TWS_MIN = 4, TWS_MAX = 25;
@@ -43,6 +44,12 @@ import {
   function slotsFor(boat) {
     return data[boat].bySail[currentSail[boat]];
   }
+
+  // Which boat's suggested set is shown — per-browser only, never synced to other viewers.
+  var suggestBoat = (function () {
+    var saved = safeGet(SUGGEST_BOAT_KEY);
+    return BOATS.indexOf(saved) !== -1 ? saved : "artemis";
+  })();
 
   // ---------- Crossover (wind-range charts): battens & chocks vs TWS, per boat/mainsail/position ----------
 
@@ -514,11 +521,33 @@ import {
     return matchB ? { id: matchId, batten: matchB } : null;
   }
 
+  function renderSuggestBoatToggle() {
+    var wrap = document.getElementById("suggestBoatToggle");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    BOATS.forEach(function (boat) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "sail-toggle__btn" + (suggestBoat === boat ? " is-active" : "");
+      btn.textContent = boat === "artemis" ? "Artemis" : "Gemera";
+      btn.addEventListener("click", function () {
+        if (suggestBoat === boat) return;
+        suggestBoat = boat;
+        safeSet(SUGGEST_BOAT_KEY, boat); // per-browser only — never written to Firestore/other viewers
+        renderSuggestBoatToggle();
+        renderSuggestedSet();
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
   function renderSuggestedSet() {
     var wrap = document.getElementById("suggestedSetList");
     var suggestHint = document.getElementById("suggestHint");
     if (!wrap) return;
     wrap.innerHTML = "";
+
+    var boat = suggestBoat;
 
     var suggestInput = document.getElementById("suggestTws");
     var tws = suggestInput ? parseFloat(suggestInput.value) : NaN;
@@ -529,12 +558,10 @@ import {
       return;
     }
 
+    var sail = currentSail[boat];
     var anyRanges = POSITIONS.some(function (pos) {
-      return BOATS.some(function (boat) {
-        var sail = currentSail[boat];
-        var posX = crossoverData[boat].bySail[sail] && crossoverData[boat].bySail[sail][pos];
-        return posX && Object.keys(posX.battens).length;
-      });
+      var posX = crossoverData[boat].bySail[sail] && crossoverData[boat].bySail[sail][pos];
+      return posX && Object.keys(posX.battens).length;
     });
     if (suggestHint) suggestHint.classList.toggle("is-hidden", anyRanges);
 
@@ -547,42 +574,32 @@ import {
       head.textContent = "B" + pos;
       row.appendChild(head);
 
-      var any = false;
-      BOATS.forEach(function (boat) {
-        var match = findSuggestion(boat, pos, tws);
-        var boatWrap = document.createElement("div");
-        boatWrap.className = "compare-row__boat";
+      var match = findSuggestion(boat, pos, tws);
 
-        var label = document.createElement("span");
-        label.className = "compare-row__boat-label";
-        label.textContent = boat === "artemis" ? "Artemis" : "Gemera";
-        boatWrap.appendChild(label);
+      var boatWrap = document.createElement("div");
+      boatWrap.className = "compare-row__boat";
 
-        var name = document.createElement("span");
-        name.className = "compare-row__name";
-        name.textContent = match ? match.batten.name : "—";
-        boatWrap.appendChild(name);
+      var name = document.createElement("span");
+      name.className = "compare-row__name";
+      name.textContent = match ? match.batten.name : "No suggestion for this TWS";
+      boatWrap.appendChild(name);
 
-        if (match) {
-          any = true;
-          var eiPill = document.createElement("span");
-          eiPill.className = "compare-row__ei";
-          eiPill.textContent = eiLabel(match.batten.ei);
-          boatWrap.appendChild(eiPill);
-        }
+      if (match) {
+        var eiPill = document.createElement("span");
+        eiPill.className = "compare-row__ei";
+        eiPill.textContent = eiLabel(match.batten.ei);
+        boatWrap.appendChild(eiPill);
+      }
 
-        row.appendChild(boatWrap);
-      });
+      row.appendChild(boatWrap);
 
-      var result = document.createElement("div");
-      result.className = "compare-row__result compare-row__suggest";
-      BOATS.forEach(function (boat) {
-        var match = findSuggestion(boat, pos, tws);
-        if (!match) return;
+      if (match) {
+        var result = document.createElement("div");
+        result.className = "compare-row__result compare-row__suggest";
         var already = slotsFor(boat)[pos].installed === match.id;
         var btn = document.createElement("button");
         btn.type = "button";
-        btn.textContent = "Use for " + (boat === "artemis" ? "Artemis" : "Gemera") + (already ? " ✓" : "");
+        btn.textContent = "Use this" + (already ? " ✓" : "");
         btn.addEventListener("click", function () {
           slotsFor(boat)[pos].installed = match.id;
           saveBoat(boat);
@@ -591,14 +608,16 @@ import {
           renderSuggestedSet();
         });
         result.appendChild(btn);
-      });
-      row.appendChild(result);
-
-      if (!any) row.style.opacity = ".55";
+        row.appendChild(result);
+      } else {
+        row.style.opacity = ".55";
+      }
 
       wrap.appendChild(row);
     });
   }
+
+  renderSuggestBoatToggle();
 
   var suggestTwsInput = document.getElementById("suggestTws");
   if (suggestTwsInput) suggestTwsInput.addEventListener("input", renderSuggestedSet);
