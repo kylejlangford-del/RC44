@@ -107,8 +107,11 @@ import {
   }
 
   function dateOf(scan) {
-    var d = new Date(scan.time);
-    return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+    // scan.time is a plain "YYYY-MM-DDTHH:MM:SS" wall-clock string with no timezone —
+    // read the date digits directly rather than going through Date/toISOString, which
+    // would reinterpret it in the viewing browser's own timezone and can shift the date.
+    var t = scan.time || "";
+    return /^\d{4}-\d{2}-\d{2}/.test(t) ? t.slice(0, 10) : null;
   }
 
   // ---------- Filters ----------
@@ -274,8 +277,10 @@ import {
   // ---------- Catalog (thumbnail picker) ----------
 
   function scanCaption(scan) {
-    var d = new Date(scan.time);
-    var when = isNaN(d.getTime()) ? scan.time : d.toISOString().slice(0, 16).replace("T", " ");
+    // Same reasoning as dateOf(): keep the stored wall-clock string as-is instead of
+    // reinterpreting it through Date/toISOString (which shifts it by the viewer's timezone).
+    var t = scan.time || "";
+    var when = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(t) ? t.slice(0, 16).replace("T", " ") : t;
     var bits = [when];
     if (scan.sail) bits.push(scan.sail);
     if (scan.wind && scan.wind.tws !== undefined && scan.wind.tws !== null) bits.push(scan.wind.tws + "kn TWS");
