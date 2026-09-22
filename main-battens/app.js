@@ -852,6 +852,11 @@ import {
         wrap.querySelectorAll(".xover-subtab__btn").forEach(function (b) { b.classList.toggle("is-active", b === btn); });
         xoverKind[boat] = btn.dataset.xoverKind;
         renderXoverChart(boat);
+        // Switching kind can drastically shorten/lengthen the panel (e.g. Battens' several rows vs
+        // an empty Chocks list) — keep the B1..B6 position toggle in view so it doesn't seem to
+        // "disappear" just because the page reflowed out from under the user's scroll position.
+        var posToggle = document.querySelector('[data-xover-pos="' + boat + '"]');
+        if (posToggle) posToggle.scrollIntoView({ block: "nearest" });
       });
     });
   });
