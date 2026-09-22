@@ -766,7 +766,132 @@ import {
 
   // ---------- Mast calibration dialog ----------
 
-  var cal = { points: [], imgEl: null, scanId: null, onSave: null };
+  var cal = { points: [], imgEl: null, scanId: null, onSave: null, dragIndex: -1, suppressNextClick: false };
+
+  function autoDetectMast(imgEl) {
+    try {
+      var iw = imgEl.naturalWidth, ih = imgEl.naturalHeight;
+      if (!iw || !ih) return null;
+      var cw = 240;
+      var ch = Math.round(ih * (cw / iw));
+      var canvas = document.createElement("canvas");
+      canvas.width = cw; canvas.height = ch;
+      var ctx = canvas.getContext("2d");
+      ctx.drawImage(imgEl, 0, 0, cw, ch);
+      var data;
+      try {
+        data = ctx.getImageData(0, 0, cw, ch).data;
+      } catch (secErr) {
+        return null; // cross-origin image; can't inspect pixels
+      }
+
+      function luma(x, y) {
+        var i = (y * cw + x) * 4;
+        return 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      }
+
+      var minW = Math.max(1, Math.round(cw * 0.006));
+      var maxW = Math.max(minW + 1, Math.round(cw * 0.05));
+      var candidates = [];
+      var prevX = null;
+
+      for (var y = 0; y < ch; y++) {
+        // Row brightness stats to pick an adaptive dark threshold.
+        var rowVals = [];
+        for (var x = 0; x < cw; x++) rowVals.push(luma(x, y));
+        var mean = rowVals.reduce(function (a, b) { return a + b; }, 0) / rowVals.length;
+        var threshold = mean - 18; // mast reads darker than its surroundings
+
+        // Find dark runs of plausible mast width.
+        var runs = [];
+        var runStart = -1;
+        for (var xi = 0; xi <= cw; xi++) {
+          var isDark = xi < cw && rowVals[xi] < threshold;
+          if (isDark && runStart === -1) {
+            runStart = xi;
+          } else if (!isDark && runStart !== -1) {
+            var runLen = xi - runStart;
+            if (runLen >= minW && runLen <= maxW) {
+              runs.push({ x: runStart + runLen / 2, w: runLen });
+            }
+            runStart = -1;
+          }
+        }
+        if (!runs.length) continue;
+
+        var chosen;
+        if (prevX === null) {
+          chosen = runs[0];
+          for (var ri = 1; ri < runs.length; ri++) {
+            if (Math.abs(runs[ri].x - cw / 2) < Math.abs(chosen.x - cw / 2)) chosen = runs[ri];
+          }
+        } else {
+          chosen = runs[0];
+          var bestDist = Math.abs(runs[0].x - prevX);
+          for (var rj = 1; rj < runs.length; rj++) {
+            var d = Math.abs(runs[rj].x - prevX);
+            if (d < bestDist) { bestDist = d; chosen = runs[rj]; }
+          }
+          if (bestDist > cw * 0.08) continue; // too big a jump row-to-row; skip
+        }
+        candidates.push({ x: chosen.x, y: y });
+        prevX = chosen.x;
+      }
+
+      if (candidates.length < 20) return null;
+      var ySpan = candidates[candidates.length - 1].y - candidates[0].y;
+      if (ySpan < ch * 0.4) return null;
+
+      function fitLine(pts) {
+        var n = pts.length, sy = 0, sx = 0, syy = 0, sxy = 0;
+        pts.forEach(function (p) { sy += p.y; sx += p.x; syy += p.y * p.y; sxy += p.x * p.y; });
+        var denom = n * syy - sy * sy;
+        if (Math.abs(denom) < 1e-6) return null;
+        var b = (n * sxy - sy * sx) / denom; // x = a + b*y
+        var a = (sx - b * sy) / n;
+        return { a: a, b: b };
+      }
+
+      var fit = fitLine(candidates);
+      if (!fit) return null;
+
+      var residuals = candidates.map(function (p) { return Math.abs(p.x - (fit.a + fit.b * p.y)); });
+      var sorted = residuals.slice().sort(function (a, b) { return a - b; });
+      var median = sorted[Math.floor(sorted.length / 2)] || 1;
+      var cutoff = Math.max(median * 2.2, 2);
+      var inliers = candidates.filter(function (p, i) { return residuals[i] <= cutoff; });
+      if (inliers.length >= 12) fit = fitLine(inliers) || fit;
+      if (inliers.length < 12) return null;
+
+      var yTop = ch * 0.06, yBase = ch * 0.94;
+      var xTop = fit.a + fit.b * yTop;
+      var xBase = fit.a + fit.b * yBase;
+      return {
+        x1: xTop / cw, y1: yTop / ch,
+        x2: xBase / cw, y2: yBase / ch
+      };
+    } catch (err) {
+      console.error("Auto-detect mast failed", err);
+      return null;
+    }
+  }
+
+  function runAutoDetect(silentIfFailed) {
+    var img = cal.imgEl;
+    if (!img) return;
+    var guess = autoDetectMast(img);
+    if (guess) {
+      cal.points = [
+        { xf: guess.x1, yf: guess.y1 },
+        { xf: guess.x2, yf: guess.y2 }
+      ];
+      drawCalPoints();
+      document.getElementById("calSaveBtn").disabled = false;
+      document.getElementById("calHint").textContent = "Auto-detected — drag either point to fine-tune, or Save.";
+    } else if (!silentIfFailed) {
+      document.getElementById("calHint").textContent = "Couldn't auto-detect the mast — click the top, then the base, to set it by hand.";
+    }
+  }
 
   function openMastCalibrator(scanId, imageSrcOverride, onSaveOverride) {
     var scan = scanId ? findScan(scanId) : null;
@@ -776,6 +901,8 @@ import {
     cal.points = [];
     cal.scanId = scanId;
     cal.onSave = onSaveOverride || null;
+    cal.dragIndex = -1;
+    cal.suppressNextClick = false;
 
     var existing = scan ? scan.mast : null;
 
@@ -795,31 +922,119 @@ import {
     cal.svg = svg;
     cal.imgEl = img;
 
+    var loupe = document.createElement("canvas");
+    loupe.className = "cal-loupe";
+    loupe.width = 150; loupe.height = 150;
+    stage.appendChild(loupe);
+    cal.loupe = loupe;
+
     document.getElementById("calHint").textContent = "Click the top of the mast, then click the base (gooseneck).";
     document.getElementById("calSaveBtn").disabled = true;
 
-    if (existing) {
-      cal.points = [
-        { xf: existing.x1, yf: existing.y1 },
-        { xf: existing.x2, yf: existing.y2 }
-      ];
-      img.addEventListener("load", drawCalPoints, { once: true });
-      document.getElementById("calSaveBtn").disabled = false;
-      document.getElementById("calHint").textContent = "Existing alignment shown — click to start over, or Save to keep it.";
+    function ready() {
+      if (existing) {
+        cal.points = [
+          { xf: existing.x1, yf: existing.y1 },
+          { xf: existing.x2, yf: existing.y2 }
+        ];
+        drawCalPoints();
+        document.getElementById("calSaveBtn").disabled = false;
+        document.getElementById("calHint").textContent = "Existing alignment shown — drag a point to adjust, Auto-detect to re-guess, or Save.";
+      } else {
+        runAutoDetect(true);
+        if (!cal.points.length) {
+          document.getElementById("calHint").textContent = "Click the top of the mast, then click the base (gooseneck).";
+        }
+      }
     }
+    if (img.complete && img.naturalWidth) ready();
+    else img.addEventListener("load", ready, { once: true });
 
-    stage.onclick = function (e) {
-      if (cal.points.length >= 2) cal.points = [];
+    function pointFromEvent(e) {
       var rect = img.getBoundingClientRect();
       var xf = (e.clientX - rect.left) / rect.width;
       var yf = (e.clientY - rect.top) / rect.height;
-      cal.points.push({ xf: xf, yf: yf });
+      xf = Math.min(1, Math.max(0, xf));
+      yf = Math.min(1, Math.max(0, yf));
+      return { xf: xf, yf: yf };
+    }
+
+    function positionLoupe(clientX, clientY, xf, yf) {
+      var stageRect = stage.getBoundingClientRect();
+      var lx = clientX - stageRect.left + 20;
+      var ly = clientY - stageRect.top - 170;
+      if (ly < 0) ly = clientY - stageRect.top + 20;
+      if (lx + 150 > stageRect.width) lx = clientX - stageRect.left - 170;
+      loupe.style.left = lx + "px";
+      loupe.style.top = ly + "px";
+      loupe.classList.add("is-visible");
+
+      var lctx = loupe.getContext("2d");
+      lctx.clearRect(0, 0, 150, 150);
+      var zoom = 4;
+      var srcW = 150 / zoom, srcH = 150 / zoom;
+      var sx = xf * img.naturalWidth - srcW / 2;
+      var sy = yf * img.naturalHeight - srcH / 2;
+      lctx.imageSmoothingEnabled = false;
+      lctx.drawImage(img, sx, sy, srcW, srcH, 0, 0, 150, 150);
+      lctx.strokeStyle = "rgba(255,255,255,.85)";
+      lctx.lineWidth = 1;
+      lctx.beginPath();
+      lctx.moveTo(75, 0); lctx.lineTo(75, 150);
+      lctx.moveTo(0, 75); lctx.lineTo(150, 75);
+      lctx.stroke();
+    }
+
+    function hideLoupe() {
+      loupe.classList.remove("is-visible");
+    }
+
+    stage.onclick = function (e) {
+      if (cal.suppressNextClick) { cal.suppressNextClick = false; return; }
+      if (cal.points.length >= 2) cal.points = [];
+      var p = pointFromEvent(e);
+      cal.points.push(p);
       drawCalPoints();
       document.getElementById("calHint").textContent = cal.points.length === 1
         ? "Now click the base of the mast (gooseneck)."
-        : "Two points set. Click again to redo, or Save.";
+        : "Two points set. Drag either to fine-tune, click again to redo, or Save.";
       document.getElementById("calSaveBtn").disabled = cal.points.length < 2;
     };
+
+    stage.onmousemove = function (e) {
+      if (cal.dragIndex === -1 && cal.points.length < 2) {
+        var p = pointFromEvent(e);
+        positionLoupe(e.clientX, e.clientY, p.xf, p.yf);
+      }
+    };
+    stage.onmouseleave = function () {
+      if (cal.dragIndex === -1) hideLoupe();
+    };
+
+    svg.addEventListener("mousedown", function (e) {
+      var target = e.target;
+      if (!target || target.tagName !== "circle") return;
+      var idx = Array.prototype.indexOf.call(svg.querySelectorAll("circle"), target);
+      if (idx === -1) return;
+      cal.dragIndex = idx;
+      e.preventDefault();
+    });
+
+    document.addEventListener("mousemove", cal._onDocMove = function (e) {
+      if (cal.dragIndex === -1 || !cal.imgEl || cal.imgEl !== img) return;
+      var p = pointFromEvent(e);
+      cal.points[cal.dragIndex] = p;
+      drawCalPoints();
+      positionLoupe(e.clientX, e.clientY, p.xf, p.yf);
+    });
+    document.addEventListener("mouseup", cal._onDocUp = function () {
+      if (cal.dragIndex !== -1) {
+        cal.dragIndex = -1;
+        cal.suppressNextClick = true;
+        hideLoupe();
+        document.getElementById("calSaveBtn").disabled = cal.points.length < 2;
+      }
+    });
   }
 
   function drawCalPoints() {
@@ -851,6 +1066,10 @@ import {
 
   document.getElementById("calClose").addEventListener("click", function () {
     document.getElementById("calDialog").classList.add("is-hidden");
+    if (cal.loupe) cal.loupe.classList.remove("is-visible");
+    if (cal._onDocMove) document.removeEventListener("mousemove", cal._onDocMove);
+    if (cal._onDocUp) document.removeEventListener("mouseup", cal._onDocUp);
+    cal.dragIndex = -1;
     if (scanPreviewId) document.getElementById("scanPreviewDialog").classList.remove("is-hidden");
   });
   document.getElementById("calClearBtn").addEventListener("click", function () {
@@ -858,6 +1077,9 @@ import {
     drawCalPoints();
     document.getElementById("calSaveBtn").disabled = true;
     document.getElementById("calHint").textContent = "Click the top of the mast, then click the base (gooseneck).";
+  });
+  document.getElementById("calAutoBtn").addEventListener("click", function () {
+    runAutoDetect(false);
   });
   document.getElementById("calSaveBtn").addEventListener("click", function () {
     if (cal.points.length !== 2) return;
@@ -882,6 +1104,10 @@ import {
       }
     }
     document.getElementById("calDialog").classList.add("is-hidden");
+    if (cal.loupe) cal.loupe.classList.remove("is-visible");
+    if (cal._onDocMove) document.removeEventListener("mousemove", cal._onDocMove);
+    if (cal._onDocUp) document.removeEventListener("mouseup", cal._onDocUp);
+    cal.dragIndex = -1;
   });
 
   // ---------- Add scan ----------

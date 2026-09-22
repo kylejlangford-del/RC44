@@ -1159,9 +1159,13 @@ select:focus, input:focus, textarea:focus {
   display: inline-block;
   max-width: 100%;
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--line);
   cursor: crosshair;
+}
+
+.cal-image {
+  border-radius: 12px;
 }
 
 .cal-image {
@@ -1194,6 +1198,25 @@ select:focus, input:focus, textarea:focus {
   font-size: 13px;
   font-family: Inter, sans-serif;
 }
+
+.cal-point { cursor: grab; }
+.cal-point:active { cursor: grabbing; }
+
+/* Magnifying loupe shown while placing or dragging a mast point, for pixel-accurate placement. */
+.cal-loupe {
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: 0 6px 20px rgba(0,0,0,.55);
+  background: #000;
+  display: none;
+}
+
+.cal-loupe.is-visible { display: block; }
 
 /* ---------- Wind Calibrator v2: boat tabs, grid tables ---------- */
 
