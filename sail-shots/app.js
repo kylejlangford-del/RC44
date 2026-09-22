@@ -24,8 +24,7 @@ import {
   var scans = JSON.parse(JSON.stringify(window.SAIL_SHOTS || []));
   var liveMode = false;
   var db = null, storage = null;
-  var selected = { artemis: null, gemera: null };
-  var compare = { left: null, right: null }; // any two scans, regardless of boat — feeds the charts + overlay
+  var compare = { left: null, right: null }; // any two scans, regardless of boat — feeds the data, charts + overlay
   var sailFilter = ""; // "" = all sails; else "Main" | "G1" | "J2" | "J3"
 
   // Existing scans predate the Main/G1/J2/J3 split — they're all mainsail battens, so tag
@@ -288,10 +287,10 @@ import {
     return bits.join(" · ");
   }
 
-  function renderCatalog(boat) {
-    var grid = document.getElementById("catalog-" + boat);
+  function renderCatalogAll() {
+    var grid = document.getElementById("catalog-all");
     grid.innerHTML = "";
-    var matches = scans.filter(function (s) { return s.boat === boat && passesFilter(s); });
+    var matches = scans.filter(passesFilter);
     matches.sort(function (a, b) { return (b.time || "").localeCompare(a.time || ""); });
 
     if (!matches.length) {
@@ -299,24 +298,16 @@ import {
       return;
     }
 
-    if (!selected[boat] || !matches.some(function (s) { return s.id === selected[boat]; })) {
-      selected[boat] = matches[0].id;
-    }
-
     matches.forEach(function (s) {
       var card = document.createElement("button");
       card.type = "button";
-      card.className = "thumb" + (s.id === selected[boat] ? " thumb--active" : "");
+      card.className = "thumb";
       card.draggable = true;
-      card.innerHTML = "<img src='" + s.file + "' alt=''><span>" + scanCaption(s) + "</span>" +
+      var dotClass = s.boat === "gemera" ? "boat-dot--gemera" : "boat-dot--artemis";
+      card.innerHTML =
+        "<span class='boat-dot " + dotClass + "' style='position:absolute; top:6px; left:6px; z-index:2;'></span>" +
+        "<img src='" + s.file + "' alt=''><span>" + scanCaption(s) + "</span>" +
         "<button type='button' class='thumb__edit' title='Edit this scan'>&#9998;</button>";
-      card.addEventListener("click", function () {
-        selected[boat] = s.id;
-        renderCatalog(boat);
-        renderStage(boat);
-        renderOverlay();
-        renderMetricCharts();
-      });
       card.addEventListener("dragstart", function (e) {
         e.dataTransfer.setData("text/plain", s.id);
         e.dataTransfer.effectAllowed = "copy";
@@ -348,15 +339,20 @@ import {
       "<div class='compare-drop__caption'>" + BOAT_LABEL[scan.boat] + " · " + scanCaption(scan) + "</div></div>";
     box.querySelector(".compare-drop__clear").addEventListener("click", function () {
       compare[slot] = null;
-      renderCompareBox(slot);
-      renderOverlay();
-      renderMetricCharts();
+      updateCompareSlot(slot);
     });
   }
 
   function renderCompareBoxes() {
     renderCompareBox("left");
     renderCompareBox("right");
+  }
+
+  function updateCompareSlot(slot) {
+    renderCompareBox(slot);
+    renderCompareDetail(slot);
+    renderOverlay();
+    renderMetricCharts();
   }
 
   ["left", "right"].forEach(function (slot) {
@@ -373,9 +369,7 @@ import {
       var id = e.dataTransfer.getData("text/plain");
       if (!id || !findScan(id)) return;
       compare[slot] = id;
-      renderCompareBox(slot);
-      renderOverlay();
-      renderMetricCharts();
+      updateCompareSlot(slot);
     });
   });
 
@@ -385,23 +379,22 @@ import {
     return "<div class='scan-data__cell'><span>" + label + "</span><strong>" + value + "</strong></div>";
   }
 
-  function renderStage(boat) {
-    var scan = selected[boat] ? findScan(selected[boat]) : null;
-    var stage = document.getElementById("stage-" + boat);
-    var dataBox = document.getElementById("data-" + boat);
-    var calBtn = document.getElementById("calBtn-" + boat);
+  function renderCompareDetail(slot) {
+    var container = document.getElementById("compareDetail-" + slot);
+    var scan = compare[slot] ? findScan(compare[slot]) : null;
 
     if (!scan) {
-      stage.innerHTML = "<div class='scan-stage__empty'>No scan selected.</div>";
-      dataBox.innerHTML = "";
-      calBtn.classList.add("is-hidden");
+      container.innerHTML = "<div class='scan-stage__empty'>Drag a scan into the " +
+        (slot === "left" ? "left" : "right") + " box above to see its details here.</div>";
       return;
     }
 
-    calBtn.classList.remove("is-hidden");
-    calBtn.onclick = function () { openMastCalibrator(scan.id); };
+    var dotClass = scan.boat === "gemera" ? "boat-dot--gemera" : "boat-dot--artemis";
+    var html = "<div class='split-col__head'><span class='boat-dot " + dotClass + "'></span><h2>" +
+      (BOAT_LABEL[scan.boat] || scan.boat) + "</h2></div>";
 
-    stage.innerHTML = "<img src='" + scan.file + "' alt='" + boat + " sail scan'>";
+    html += "<div class='scan-stage'><img src='" + scan.file + "' alt='" + (BOAT_LABEL[scan.boat] || scan.boat) + " sail scan'></div>";
+    html += "<button type='button' class='text-link compare-detail__calbtn' style='margin-top:10px;'>Set / edit mast alignment</button>";
 
     var m = scan.mechanic || {};
     var cells = [];
@@ -420,7 +413,7 @@ import {
     cells.push(cell("Chock size", m.chockSize || "—"));
     cells.push(cell("Mast aligned", scan.mast ? "Yes" : "Not set"));
 
-    var html = "<div class='scan-data'>" + cells.join("") + "</div>";
+    html += "<div class='scan-data'>" + cells.join("") + "</div>";
 
     if (scan.camber && scan.camber.length) {
       html += "<table class='compare-table' style='margin-top:14px;'><thead><tr>" +
@@ -433,7 +426,15 @@ import {
       html += "</tbody></table>";
     }
 
-    dataBox.innerHTML = html;
+    container.innerHTML = html;
+    container.querySelector(".compare-detail__calbtn").addEventListener("click", function () {
+      openMastCalibrator(scan.id);
+    });
+  }
+
+  function renderCompareDetails() {
+    renderCompareDetail("left");
+    renderCompareDetail("right");
   }
 
   // ---------- Overlay, mast-aligned ----------
@@ -531,7 +532,6 @@ import {
     { id: "chart-draft", key: "draft", title: "Draft" },
     { id: "chart-twist", key: "twist", title: "Twist" }
   ];
-  var BOAT_COLOR = { artemis: "var(--artemis)", gemera: "var(--gemera)" };
   var BOAT_LABEL = { artemis: "Artemis", gemera: "Gemera" };
 
   function buildMetricChartSvg(seriesList) {
@@ -626,11 +626,9 @@ import {
 
   function renderAll() {
     refreshFilterOptions();
-    ["artemis", "gemera"].forEach(function (boat) {
-      renderCatalog(boat);
-      renderStage(boat);
-    });
+    renderCatalogAll();
     renderCompareBoxes();
+    renderCompareDetails();
     renderOverlay();
     renderMetricCharts();
   }
@@ -737,8 +735,8 @@ import {
     } else if (cal.scanId) {
       var scan = findScan(cal.scanId);
       if (scan) {
-        scan.mast = mast; // optimistic local update so the overlay/stage react immediately
-        renderStage(scan.boat);
+        scan.mast = mast; // optimistic local update so the overlay/detail react immediately
+        ["left", "right"].forEach(function (slot) { if (compare[slot] === scan.id) renderCompareDetail(slot); });
         renderOverlay();
         if (liveMode) {
           updateDoc(doc(db, COLLECTION, scan.id), { mast: mast }).catch(function (e) {

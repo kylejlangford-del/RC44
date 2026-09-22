@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#07111d" />
   <title>Sail Shots · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20260922b" />
+  <link rel="stylesheet" href="../styles.css?v=20260922c" />
 </head>
 <body>
   <div class="bg-glow bg-glow--one"></div>
@@ -71,34 +71,27 @@
         </div>
       </section>
 
-      <section class="split-view" style="margin-bottom:32px;">
-        <div class="panel">
-          <div class="split-col__head"><span class="boat-dot boat-dot--artemis"></span><h2>Artemis</h2></div>
-          <div id="catalog-artemis" class="thumb-grid"></div>
-          <div id="stage-artemis" class="scan-stage"></div>
-          <button id="calBtn-artemis" class="text-link is-hidden" type="button" style="margin-top:10px;">Set / edit mast alignment</button>
-          <div id="data-artemis"></div>
+      <section class="panel" style="margin-bottom:32px;">
+        <h2 style="margin-top:0;">Compare</h2>
+        <p class="import-step__hint">Drag any thumbnail from the catalog below into a box here — any two scans, regardless of boat. They drive the data below, the charts and the overlay further down.</p>
+        <div class="compare-drop-grid compare-drop-grid--sm">
+          <div class="compare-drop compare-drop--sm" id="compareLeftBox" data-slot="left">
+            <div class="compare-drop__empty">Drag a photo here</div>
+          </div>
+          <div class="compare-drop compare-drop--sm" id="compareRightBox" data-slot="right">
+            <div class="compare-drop__empty">Drag a photo here</div>
+          </div>
         </div>
-        <div class="panel">
-          <div class="split-col__head"><span class="boat-dot boat-dot--gemera"></span><h2>Gemera</h2></div>
-          <div id="catalog-gemera" class="thumb-grid"></div>
-          <div id="stage-gemera" class="scan-stage"></div>
-          <button id="calBtn-gemera" class="text-link is-hidden" type="button" style="margin-top:10px;">Set / edit mast alignment</button>
-          <div id="data-gemera"></div>
+        <div class="compare-detail-grid" style="margin-top:24px;">
+          <div class="panel" id="compareDetail-left"></div>
+          <div class="panel" id="compareDetail-right"></div>
         </div>
       </section>
 
       <section class="panel" style="margin-bottom:32px;">
-        <h2 style="margin-top:0;">Compare</h2>
-        <p class="import-step__hint">Drag any thumbnail below into a box here — any two scans, regardless of boat. They drive the charts and overlay below.</p>
-        <div class="compare-drop-grid">
-          <div class="compare-drop" id="compareLeftBox" data-slot="left">
-            <div class="compare-drop__empty">Drag a photo here</div>
-          </div>
-          <div class="compare-drop" id="compareRightBox" data-slot="right">
-            <div class="compare-drop__empty">Drag a photo here</div>
-          </div>
-        </div>
+        <h2 style="margin-top:0;">All scans</h2>
+        <p class="import-step__hint">Every scan matching the filters above — drag a thumbnail into a Compare box, or tap its pencil to edit.</p>
+        <div id="catalog-all" class="thumb-grid thumb-grid--wide"></div>
       </section>
 
       <section class="panel">
@@ -116,7 +109,7 @@
         <p class="import-step__hint">Left scan underneath, right scan on top, aligned and scaled on the mast when both scans are calibrated.</p>
         <div id="overlayNote" class="pill" style="display:inline-flex; margin:10px 0;"></div>
         <div class="overlay-toggle">
-          <span>Artemis opacity</span>
+          <span>Right scan opacity</span>
           <input id="overlayOpacity" type="range" min="0" max="100" value="50" style="flex:1;">
         </div>
         <div id="overlayStage" class="scan-stage" style="position:relative; min-height:320px; overflow:hidden;"></div>
@@ -203,6 +196,6 @@
   <script src="./data.js?v=20260922a"></script>
   <script src="../main-battens/firebase-config.js?v=20260922e"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script type="module" src="./app.js?v=20260922e"></script>
+  <script type="module" src="./app.js?v=20260922f"></script>
 </body>
 </html>

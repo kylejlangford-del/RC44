@@ -993,6 +993,10 @@ select:focus, input:focus, textarea:focus {
   margin-top: 14px;
 }
 
+.compare-drop-grid--sm {
+  max-width: 520px;
+}
+
 .compare-drop {
   position: relative;
   min-height: 150px;
@@ -1003,6 +1007,29 @@ select:focus, input:focus, textarea:focus {
   justify-content: center;
   padding: 12px;
   transition: border-color .15s, background .15s;
+}
+
+.compare-drop--sm {
+  min-height: 84px;
+  padding: 8px;
+}
+
+.compare-drop--sm .compare-drop__filled img {
+  max-height: 64px;
+}
+
+.compare-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 980px) {
+  .compare-detail-grid { grid-template-columns: 1fr; }
+}
+
+.thumb-grid--wide {
+  max-height: 320px;
 }
 
 .compare-drop.is-dragover {
