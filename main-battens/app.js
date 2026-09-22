@@ -57,13 +57,24 @@ import {
   var currentXoverPos = { artemis: 1, gemera: 1 };
   var xoverKind = { artemis: "battens", gemera: "battens" };
 
+  // Crossover sub-tabs other than "battens": each is a free-form named list (like chocks) with
+  // its own TWS range per item, per position.
+  var CUSTOM_KINDS = {
+    chocks: { label: "Chocks", placeholder: "Chock name, e.g. 1x thin port", addLabel: "+ Add chock", noun: "chocks" },
+    rake: { label: "Rake", placeholder: "Rake setting, e.g. 3200mm", addLabel: "+ Add rake setting", noun: "rake settings" },
+    rigsetup: { label: "Rig set up", placeholder: "Rig set up, e.g. 22 on the gauge", addLabel: "+ Add rig set up", noun: "rig set-ups" },
+    liftoff: { label: "Lift off (bar)", placeholder: "Lift off, e.g. 24 bar", addLabel: "+ Add lift off", noun: "lift-off settings" }
+  };
+
   function ensureXoverPos(boat, sail, pos) {
     var bySail = crossoverData[boat].bySail;
     if (!bySail[sail]) bySail[sail] = {};
-    if (!bySail[sail][pos]) bySail[sail][pos] = { battens: {}, chocks: { defs: [], ranges: {} } };
+    if (!bySail[sail][pos]) bySail[sail][pos] = { battens: {} };
     var slot = bySail[sail][pos];
-    if (!slot.chocks) slot.chocks = { defs: [], ranges: {} };
     if (!slot.battens) slot.battens = {};
+    Object.keys(CUSTOM_KINDS).forEach(function (k) {
+      if (!slot[k]) slot[k] = { defs: [], ranges: {} };
+    });
     return slot;
   }
 
@@ -450,6 +461,10 @@ import {
       head.textContent = "B" + pos;
       row.appendChild(head);
 
+      var boatsWrap = document.createElement("div");
+      boatsWrap.className = "compare-row__boats";
+      row.appendChild(boatsWrap);
+
       BOATS.forEach(function (boat) {
         var slot = slotsFor(boat)[pos];
         var b = slot.installed ? findBatten(boat, pos, slot.installed) : null;
@@ -481,7 +496,7 @@ import {
           boatWrap.appendChild(eiPill);
         }
 
-        row.appendChild(boatWrap);
+        boatsWrap.appendChild(boatWrap);
       });
 
       var result = document.createElement("div");
@@ -504,21 +519,74 @@ import {
     });
   }
 
-  // ---------- Suggested batten set (TWS-based, below the comparison) ----------
+  // ---------- Suggested set up (TWS-based, below the comparison) ----------
+  // For a given boat/position/kind, returns EVERY item whose Crossover wind range covers the
+  // TWS entered — there can be more than one (e.g. two battens with overlapping ranges).
 
-  function findSuggestion(boat, pos, tws) {
+  function findSuggestions(boat, pos, tws, kind) {
     var sail = currentSail[boat];
     var posX = crossoverData[boat].bySail[sail] && crossoverData[boat].bySail[sail][pos];
-    if (!posX) return null;
-    var matchId = null, matchB = null;
-    Object.keys(posX.battens).forEach(function (id) {
-      var r = posX.battens[id];
-      if (tws >= r.min && tws <= r.max) {
-        var cand = findBatten(boat, pos, id);
-        if (cand && !cand.decommissioned) { matchId = id; matchB = cand; }
+    if (!posX) return [];
+    var results = [];
+    if (kind === "battens") {
+      var battenRanges = posX.battens || {};
+      Object.keys(battenRanges).forEach(function (id) {
+        var r = battenRanges[id];
+        if (tws >= r.min && tws <= r.max) {
+          var cand = findBatten(boat, pos, id);
+          if (cand && !cand.decommissioned) results.push({ id: id, label: cand.name, sub: eiLabel(cand.ei), ei: cand.ei });
+        }
+      });
+      results = sortByEi(results.map(function (r) { return { ei: r.ei, id: r.id, label: r.label, sub: r.sub }; }));
+    } else {
+      var kindData = posX[kind];
+      if (!kindData) return [];
+      var ranges = kindData.ranges || {};
+      (kindData.defs || []).forEach(function (d) {
+        var r = ranges[d.id];
+        if (r && tws >= r.min && tws <= r.max) results.push({ id: d.id, label: d.name, sub: "" });
+      });
+    }
+    return results;
+  }
+
+  // Builds one labelled row of suggestion chips (e.g. "Battens: X, Y"). actionFor(match) returns
+  // {already, onUse} to make a chip clickable (battens only — other kinds have nowhere to "install" to).
+  function buildSuggestGroup(label, matches, actionFor) {
+    var group = document.createElement("div");
+    group.className = "suggested-set-group";
+
+    var lbl = document.createElement("span");
+    lbl.className = "suggested-set-group__label";
+    lbl.textContent = label;
+    group.appendChild(lbl);
+
+    if (!matches.length) {
+      var none = document.createElement("span");
+      none.className = "suggested-set-group__none";
+      none.textContent = "No suggestion for this TWS";
+      group.appendChild(none);
+      return group;
+    }
+
+    matches.forEach(function (m) {
+      var text = m.label + (m.sub ? " · " + m.sub : "");
+      if (actionFor) {
+        var action = actionFor(m);
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "suggested-set-chip is-button";
+        btn.textContent = text + (action.already ? " ✓" : "");
+        btn.addEventListener("click", action.onUse);
+        group.appendChild(btn);
+      } else {
+        var chip = document.createElement("span");
+        chip.className = "suggested-set-chip";
+        chip.textContent = text;
+        group.appendChild(chip);
       }
     });
-    return matchB ? { id: matchId, batten: matchB } : null;
+    return group;
   }
 
   function renderSuggestBoatToggle() {
@@ -561,60 +629,70 @@ import {
     var sail = currentSail[boat];
     var anyRanges = POSITIONS.some(function (pos) {
       var posX = crossoverData[boat].bySail[sail] && crossoverData[boat].bySail[sail][pos];
-      return posX && Object.keys(posX.battens).length;
+      if (!posX) return false;
+      if (posX.battens && Object.keys(posX.battens).length) return true;
+      return Object.keys(CUSTOM_KINDS).some(function (k) {
+        return posX[k] && posX[k].defs && posX[k].defs.length;
+      });
     });
     if (suggestHint) suggestHint.classList.toggle("is-hidden", anyRanges);
 
+    var anyRowShown = false;
+
     POSITIONS.forEach(function (pos) {
+      var posX = crossoverData[boat].bySail[sail] && crossoverData[boat].bySail[sail][pos];
+      var hasBattenRanges = posX && posX.battens && Object.keys(posX.battens).length;
+      var customKindsWithData = Object.keys(CUSTOM_KINDS).filter(function (k) {
+        return posX && posX[k] && posX[k].defs && posX[k].defs.length;
+      });
+
+      if (!hasBattenRanges && !customKindsWithData.length) return; // nothing configured for this position at all
+      anyRowShown = true;
+
       var row = document.createElement("div");
-      row.className = "compare-row";
+      row.className = "suggested-set-row";
 
       var head = document.createElement("div");
       head.className = "compare-row__head";
       head.textContent = "B" + pos;
       row.appendChild(head);
 
-      var match = findSuggestion(boat, pos, tws);
+      var groupsWrap = document.createElement("div");
+      groupsWrap.className = "suggested-set-groups";
 
-      var boatWrap = document.createElement("div");
-      boatWrap.className = "compare-row__boat";
-
-      var name = document.createElement("span");
-      name.className = "compare-row__name";
-      name.textContent = match ? match.batten.name : "No suggestion for this TWS";
-      boatWrap.appendChild(name);
-
-      if (match) {
-        var eiPill = document.createElement("span");
-        eiPill.className = "compare-row__ei";
-        eiPill.textContent = eiLabel(match.batten.ei);
-        boatWrap.appendChild(eiPill);
+      if (hasBattenRanges) {
+        var battenMatches = findSuggestions(boat, pos, tws, "battens");
+        groupsWrap.appendChild(buildSuggestGroup("Battens", battenMatches, function (m) {
+          var already = slotsFor(boat)[pos].installed === m.id;
+          return {
+            already: already,
+            onUse: function () {
+              slotsFor(boat)[pos].installed = m.id;
+              saveBoat(boat);
+              render();
+              renderCompare();
+              renderSuggestedSet();
+            }
+          };
+        }));
       }
 
-      row.appendChild(boatWrap);
+      customKindsWithData.forEach(function (k) {
+        var matches = findSuggestions(boat, pos, tws, k);
+        groupsWrap.appendChild(buildSuggestGroup(CUSTOM_KINDS[k].label, matches, null));
+      });
 
-      if (match) {
-        var result = document.createElement("div");
-        result.className = "compare-row__result compare-row__suggest";
-        var already = slotsFor(boat)[pos].installed === match.id;
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.textContent = "Use this" + (already ? " ✓" : "");
-        btn.addEventListener("click", function () {
-          slotsFor(boat)[pos].installed = match.id;
-          saveBoat(boat);
-          render();
-          renderCompare();
-          renderSuggestedSet();
-        });
-        result.appendChild(btn);
-        row.appendChild(result);
-      } else {
-        row.style.opacity = ".55";
-      }
-
+      row.appendChild(groupsWrap);
       wrap.appendChild(row);
     });
+
+    if (!anyRowShown) {
+      var empty = document.createElement("p");
+      empty.className = "import-step__hint";
+      empty.textContent = "Nothing set up yet on the Crossover tab for " +
+        (boat === "artemis" ? "Artemis" : "Gemera") + "'s " + sail + ".";
+      wrap.appendChild(empty);
+    }
   }
 
   renderSuggestBoatToggle();
@@ -938,25 +1016,27 @@ import {
     });
     container.appendChild(ruler);
 
-    if (kind === "chocks") {
+    var custom = CUSTOM_KINDS[kind]; // undefined for "battens"
+
+    if (custom) {
       var addForm = document.createElement("form");
       addForm.className = "add-chock-form";
       var addInput = document.createElement("input");
       addInput.type = "text";
-      addInput.placeholder = "Chock name, e.g. 1x thin port";
+      addInput.placeholder = custom.placeholder;
       addInput.required = true;
       var addBtn = document.createElement("button");
       addBtn.type = "submit";
       addBtn.className = "ghost-button";
       addBtn.style.cssText = "font-size:.78rem; padding:7px 14px;";
-      addBtn.textContent = "+ Add chock";
+      addBtn.textContent = custom.addLabel;
       addForm.appendChild(addInput);
       addForm.appendChild(addBtn);
       addForm.addEventListener("submit", function (e) {
         e.preventDefault();
         var name = addInput.value.trim();
         if (!name) return;
-        slot.chocks.defs.push({ id: "chock-" + Date.now().toString(36), name: name });
+        slot[kind].defs.push({ id: kind + "-" + Date.now().toString(36), name: name });
         saveCrossover(boat);
         renderXoverChart(boat);
       });
@@ -971,19 +1051,19 @@ import {
       ? sortByEi(slotsFor(boat)[pos].battens.filter(function (b) { return !b.decommissioned; })).map(function (b) {
           return { id: b.id, label: b.name, sub: eiLabel(b.ei), removable: false };
         })
-      : slot.chocks.defs.map(function (c) { return { id: c.id, label: c.name, sub: "", removable: true }; });
+      : slot[kind].defs.map(function (c) { return { id: c.id, label: c.name, sub: "", removable: true }; });
 
     if (!rows.length) {
       var empty = document.createElement("p");
       empty.className = "import-step__hint";
       empty.textContent = kind === "battens"
         ? "No battens in B" + pos + "'s " + sail + " inventory yet — add some under Full inventory."
-        : "No chocks added for B" + pos + " yet — add one above.";
+        : "No " + custom.noun + " added for B" + pos + " yet — add one above.";
       chart.appendChild(empty);
       return;
     }
 
-    var store = kind === "battens" ? slot.battens : slot.chocks.ranges;
+    var store = kind === "battens" ? slot.battens : slot[kind].ranges;
 
     rows.forEach(function (r) {
       var row = document.createElement("div");
@@ -1004,8 +1084,8 @@ import {
         rm.className = "text-link xover-row__remove";
         rm.textContent = "Remove";
         rm.addEventListener("click", function () {
-          slot.chocks.defs = slot.chocks.defs.filter(function (c) { return c.id !== r.id; });
-          delete slot.chocks.ranges[r.id];
+          slot[kind].defs = slot[kind].defs.filter(function (c) { return c.id !== r.id; });
+          delete slot[kind].ranges[r.id];
           saveCrossover(boat);
           renderXoverChart(boat);
         });
