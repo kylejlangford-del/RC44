@@ -146,6 +146,7 @@ import {
 
   function refreshFilterOptions() {
     populateDropdown("fEvent", distinctValues(function (s) { return s.event; }));
+    populateDropdown("fSailCode", distinctValues(function (s) { return s.sailCode; }));
     renderDateChips();
     populateDropdown("fBsp", distinctValues(function (s) { return s.boat_ && s.boat_.bsp; }), function (v) { return v + " kn"; });
     populateDropdown("fChock", distinctValues(function (s) { return s.mechanic && s.mechanic.chockSize; }));
@@ -213,6 +214,7 @@ import {
 
   function passesFilter(scan) {
     var event = document.getElementById("fEvent").value;
+    var sailCode = document.getElementById("fSailCode").value;
     var bsp = document.getElementById("fBsp").value;
     var chock = document.getElementById("fChock").value;
     var mastSetup = document.getElementById("fMastSetup").value;
@@ -222,6 +224,7 @@ import {
     var twsHi = Number(document.getElementById("fTwsHi").value);
 
     if (event && scan.event !== event) return false;
+    if (sailCode && (scan.sailCode || "") !== sailCode) return false;
     if (selectedDates !== null && !selectedDates.has(dateOf(scan))) return false;
     if (bsp && String(scan.boat_ && scan.boat_.bsp) !== bsp) return false;
     if (chock && String(scan.mechanic && scan.mechanic.chockSize) !== chock) return false;
@@ -281,7 +284,7 @@ import {
     var t = scan.time || "";
     var when = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(t) ? t.slice(0, 16).replace("T", " ") : t;
     var bits = [when];
-    if (scan.sail) bits.push(scan.sail);
+    if (scan.sail) bits.push(scan.sail + (scan.sailCode ? " (" + scan.sailCode + ")" : ""));
     if (scan.wind && scan.wind.tws !== undefined && scan.wind.tws !== null) bits.push(scan.wind.tws + "kn TWS");
     if (scan.battenLabel) bits.push(scan.battenLabel);
     return bits.join(" · ");
@@ -387,6 +390,8 @@ import {
   // you have to match up by eye.
   var FIELD_DEFS = [
     { label: "Event", get: function (s) { return s.event || "—"; } },
+    { label: "Sail", get: function (s) { return s.sail || "—"; } },
+    { label: "Sail code", get: function (s) { return s.sailCode || "—"; } },
     { label: "Time", get: function (s) { return s.time ? s.time.replace("T", " ") : "—"; } },
     { label: "Batten", get: function (s) { return s.battenLabel || "—"; } },
     { label: "Tack", get: function (s) { return s.tack || "—"; } },
@@ -406,6 +411,83 @@ import {
     ["camber", "Camber"], ["draft", "Draft"], ["twist", "Twist"], ["entry", "Entry"],
     ["exit", "Exit"], ["foreCam", "Fore cam"], ["backCam", "Back cam"]
   ];
+
+  // ---------- Flying shape targets (Gemera, Aug-25) ----------
+  // From the team's target tables: one set for the jib (applies to G1/J2/J3), one for the
+  // mainsail, each given at 25/50/75% height and in 2kn TWS bins from 6 to 20kn. Targets are
+  // only available for Gemera and only for camber/draft/foreCam/backCam — twist/entry/exit and
+  // Artemis scans have no target to compare against.
+  var TARGET_BINS = [6, 8, 10, 12, 14, 16, 18, 20];
+  var TARGET_HEIGHTS = [25, 50, 75];
+  var FLYING_SHAPE_TARGETS = {
+    jib: {
+      6: { 25: { camber: 10.6, draft: 38.0, foreCam: 83.1, backCam: 72.0 }, 50: { camber: 13.6, draft: 36.6, foreCam: 80.0, backCam: 68.0 }, 75: { camber: 13.2, draft: 38.9, foreCam: 76.0, backCam: 68.0 } },
+      8: { 25: { camber: 10.4, draft: 37.2, foreCam: 82.7, backCam: 71.3 }, 50: { camber: 13.1, draft: 36.1, foreCam: 79.9, backCam: 68.0 }, 75: { camber: 12.4, draft: 38.6, foreCam: 76.0, backCam: 67.9 } },
+      10: { 25: { camber: 10.1, draft: 36.4, foreCam: 82.3, backCam: 70.7 }, 50: { camber: 12.5, draft: 35.6, foreCam: 79.8, backCam: 68.1 }, 75: { camber: 11.6, draft: 38.3, foreCam: 76.1, backCam: 67.8 } },
+      12: { 25: { camber: 9.9, draft: 35.6, foreCam: 81.9, backCam: 70.0 }, 50: { camber: 12.0, draft: 35.2, foreCam: 79.7, backCam: 68.1 }, 75: { camber: 10.8, draft: 38.0, foreCam: 76.1, backCam: 67.7 } },
+      14: { 25: { camber: 9.6, draft: 34.7, foreCam: 81.5, backCam: 69.3 }, 50: { camber: 11.5, draft: 34.7, foreCam: 79.5, backCam: 68.1 }, 75: { camber: 10.0, draft: 37.6, foreCam: 76.1, backCam: 67.5 } },
+      16: { 25: { camber: 9.4, draft: 33.9, foreCam: 81.1, backCam: 68.7 }, 50: { camber: 10.9, draft: 34.2, foreCam: 79.4, backCam: 68.2 }, 75: { camber: 9.2, draft: 37.3, foreCam: 76.2, backCam: 67.4 } },
+      18: { 25: { camber: 9.1, draft: 33.1, foreCam: 80.7, backCam: 68.0 }, 50: { camber: 10.4, draft: 33.7, foreCam: 79.3, backCam: 68.2 }, 75: { camber: 8.4, draft: 37.0, foreCam: 76.2, backCam: 67.3 } },
+      20: { 25: { camber: 8.9, draft: 32.3, foreCam: 80.3, backCam: 67.3 }, 50: { camber: 9.9, draft: 33.2, foreCam: 79.2, backCam: 68.2 }, 75: { camber: 7.6, draft: 36.7, foreCam: 76.2, backCam: 67.2 } }
+    },
+    main: {
+      6: { 25: { camber: 8.3, draft: 45.5, foreCam: 71.8, backCam: 68.5 }, 50: { camber: 9.4, draft: 43.5, foreCam: 72.8, backCam: 68.8 }, 75: { camber: 8.3, draft: 41.4, foreCam: 75.6, backCam: 69.5 } },
+      8: { 25: { camber: 8.0, draft: 46.5, foreCam: 71.7, backCam: 68.5 }, 50: { camber: 8.9, draft: 45.3, foreCam: 71.8, backCam: 69.3 }, 75: { camber: 7.6, draft: 43.5, foreCam: 73.2, backCam: 70.1 } },
+      10: { 25: { camber: 7.6, draft: 47.5, foreCam: 71.5, backCam: 68.6 }, 50: { camber: 8.3, draft: 47.0, foreCam: 70.8, backCam: 69.8 }, 75: { camber: 6.8, draft: 45.6, foreCam: 70.8, backCam: 70.6 } },
+      12: { 25: { camber: 7.3, draft: 48.5, foreCam: 71.4, backCam: 68.6 }, 50: { camber: 7.8, draft: 48.8, foreCam: 69.8, backCam: 70.4 }, 75: { camber: 6.1, draft: 47.7, foreCam: 68.5, backCam: 71.2 } },
+      14: { 25: { camber: 7.0, draft: 49.5, foreCam: 71.3, backCam: 68.6 }, 50: { camber: 7.3, draft: 50.5, foreCam: 68.8, backCam: 70.9 }, 75: { camber: 5.3, draft: 49.8, foreCam: 66.1, backCam: 71.7 } },
+      16: { 25: { camber: 6.6, draft: 50.5, foreCam: 71.1, backCam: 68.7 }, 50: { camber: 6.7, draft: 52.3, foreCam: 67.8, backCam: 71.4 }, 75: { camber: 4.6, draft: 51.9, foreCam: 63.7, backCam: 72.3 } },
+      18: { 25: { camber: 6.3, draft: 51.5, foreCam: 71.0, backCam: 68.7 }, 50: { camber: 6.2, draft: 54.0, foreCam: 66.8, backCam: 71.9 }, 75: { camber: 3.8, draft: 54.0, foreCam: 61.3, backCam: 72.8 } },
+      20: { 25: { camber: 6.0, draft: 52.5, foreCam: 70.9, backCam: 68.7 }, 50: { camber: 5.7, draft: 55.8, foreCam: 65.8, backCam: 72.4 }, 75: { camber: 3.1, draft: 56.1, foreCam: 58.9, backCam: 73.4 } }
+    }
+  };
+
+  function targetGroupFor(sail) {
+    return sail === "Main" ? "main" : "jib";
+  }
+
+  // Interpolates a target value for a scan's actual TWS between the two nearest 2kn bins
+  // (6..20kn). Returns null when there's nothing to compare against (Artemis, no TWS, a
+  // metric/height with no target data, or TWS entirely outside the 6-20kn target range).
+  function getTarget(scan, height, metricKey) {
+    if (!scan || scan.boat !== "gemera") return null;
+    if (!scan.wind || scan.wind.tws === undefined || scan.wind.tws === null) return null;
+    var table = FLYING_SHAPE_TARGETS[targetGroupFor(scan.sail || "Main")];
+    if (!table) return null;
+    var tws = scan.wind.tws;
+    if (tws < TARGET_BINS[0] || tws > TARGET_BINS[TARGET_BINS.length - 1]) return null;
+    var lo = TARGET_BINS[0], hi = TARGET_BINS[TARGET_BINS.length - 1];
+    for (var i = 0; i < TARGET_BINS.length - 1; i++) {
+      if (tws >= TARGET_BINS[i] && tws <= TARGET_BINS[i + 1]) { lo = TARGET_BINS[i]; hi = TARGET_BINS[i + 1]; break; }
+    }
+    var loRow = table[lo] && table[lo][height];
+    var hiRow = table[hi] && table[hi][height];
+    if (!loRow || !hiRow) return null;
+    var loV = loRow[metricKey], hiV = hiRow[metricKey];
+    if (loV === undefined || loV === null || hiV === undefined || hiV === null) return null;
+    var frac = hi === lo ? 0 : (tws - lo) / (hi - lo);
+    return Math.round((loV + (hiV - loV) * frac) * 10) / 10;
+  }
+
+  // Builds the dotted-line target series (25/50/75% only) for a metric chart, or null if the
+  // metric/scan has no target data.
+  function targetSeriesForScan(scan, metricKey) {
+    var pts = TARGET_HEIGHTS.map(function (h) {
+      var v = getTarget(scan, h, metricKey);
+      return v === null ? null : { h: h, v: v };
+    }).filter(function (p) { return p; });
+    if (!pts.length) return null;
+    return { color: "var(--stiff)", points: pts };
+  }
+
+  // Renders a camber-table cell with the OCR'd value plus, when available, the interpolated
+  // target for that scan/height/metric shown alongside it in red.
+  function camberCellHtml(scan, height, metricKey, value) {
+    var valText = (value === null || value === undefined) ? "—" : value;
+    if (value === null || value === undefined) return "<td>" + valText + "</td>";
+    var t = getTarget(scan, height, metricKey);
+    return "<td>" + valText + (t === null ? "" : "<span class='target-note'>" + t + "</span>") + "</td>";
+  }
 
   function renderCompareData() {
     var container = document.getElementById("compareData");
@@ -448,7 +530,7 @@ import {
           var row = (b.scan.camber || []).filter(function (r) { return r.height === h; })[0];
           return CAMBER_METRICS.map(function (m) {
             var v = row ? row[m[0]] : null;
-            return "<td>" + ((v === null || v === undefined) ? "—" : v) + "</td>";
+            return camberCellHtml(b.scan, h, m[0], v);
           }).join("");
         }).join("");
         return "<tr><td>" + h + "%</td>" + rowCells + "</tr>";
@@ -476,7 +558,8 @@ import {
       var points = scan.camber
         .filter(function (row) { return row[mc.key] !== null && row[mc.key] !== undefined; })
         .map(function (row) { return { h: row.height, v: row[mc.key] }; });
-      var svg = points.length ? buildMetricChartSvg([{ color: "var(--accent)", points: points }]) : null;
+      var targetSeries = targetSeriesForScan(scan, mc.key);
+      var svg = points.length ? buildMetricChartSvg([{ color: "var(--accent)", points: points }], targetSeries ? [targetSeries] : []) : null;
       html += "<div class='metric-chart'><div class='metric-chart__title'>" + mc.title + "</div>" +
         (svg || "<div class='mchart-empty'>No data.</div>") + "</div>";
     });
@@ -508,7 +591,7 @@ import {
           var row = scan.camber.filter(function (r) { return r.height === h; })[0];
           return "<tr><td>" + h + "%</td>" + CAMBER_METRICS.map(function (m) {
             var v = row ? row[m[0]] : null;
-            return "<td>" + ((v === null || v === undefined) ? "—" : v) + "</td>";
+            return camberCellHtml(scan, h, m[0], v);
           }).join("") + "</tr>";
         }).join("") + "</tbody></table>";
     }
@@ -657,13 +740,20 @@ import {
     return Math.abs(v) < 1e-9 ? "0" : String(v);
   }
 
-  function buildMetricChartSvg(seriesList) {
+  function buildMetricChartSvg(seriesList, targetSeriesList) {
+    targetSeriesList = targetSeriesList || [];
     var W = 320, H = 160, padL = 40, padR = 10, padT = 10, padB = 20;
     var plotW = W - padL - padR, plotH = H - padT - padB;
 
     var heights = [];
     var values = [];
     seriesList.forEach(function (s) {
+      s.points.forEach(function (p) {
+        if (heights.indexOf(p.h) === -1) heights.push(p.h);
+        values.push(p.v);
+      });
+    });
+    targetSeriesList.forEach(function (s) {
       s.points.forEach(function (p) {
         if (heights.indexOf(p.h) === -1) heights.push(p.h);
         values.push(p.v);
@@ -713,6 +803,17 @@ import {
       });
     });
 
+    // Target line(s) — dashed, drawn on top so they're never hidden behind the actual-value fill.
+    targetSeriesList.forEach(function (s) {
+      var pts = s.points.slice().sort(function (a, b) { return a.h - b.h; });
+      if (!pts.length) return;
+      var linePath = pts.map(function (p, i) { return (i === 0 ? "M" : "L") + x(p.h) + "," + y(p.v); }).join(" ");
+      svg += "<path d='" + linePath + "' fill='none' stroke='" + (s.color || "var(--stiff)") + "' stroke-width='2' stroke-dasharray='5 4'/>";
+      pts.forEach(function (p) {
+        svg += "<circle cx='" + x(p.h) + "' cy='" + y(p.v) + "' r='2.5' fill='none' stroke='" + (s.color || "var(--stiff)") + "' stroke-width='1.5'/>";
+      });
+    });
+
     svg += "</svg>";
     return svg;
   }
@@ -745,11 +846,15 @@ import {
         };
       });
 
+      var targetSeriesList = slotsWithScan
+        .map(function (b) { return targetSeriesForScan(b.scan, mc.key); })
+        .filter(function (s) { return s; });
+
       var legend = "<div class='metric-chart__legend'>" + seriesList.map(function (s) {
         return "<span><i style='background:" + s.color + ";'></i>" + s.label + "</span>";
-      }).join("") + "</div>";
+      }).join("") + (targetSeriesList.length ? "<span><i class='metric-chart__legend-dash'></i>Target</span>" : "") + "</div>";
 
-      var svg = buildMetricChartSvg(seriesList);
+      var svg = buildMetricChartSvg(seriesList, targetSeriesList);
       container.innerHTML = "<div class='metric-chart__title'>" + mc.title + "</div>" + legend +
         (svg || "<div class='mchart-empty'>No camber-table data on the selected scan(s).</div>");
     });
@@ -1156,6 +1261,7 @@ import {
 
     document.getElementById("addBoat").value = scan.boat || "artemis";
     document.getElementById("addSail").value = scan.sail || "Main";
+    document.getElementById("addSailCode").value = scan.sailCode || "";
     document.getElementById("addEvent").value = scan.event || "";
     document.getElementById("addTime").value = scan.time || "";
     document.getElementById("addTack").value = scan.tack || "";
@@ -1325,6 +1431,7 @@ import {
       id: id,
       boat: document.getElementById("addBoat").value,
       sail: document.getElementById("addSail").value,
+      sailCode: document.getElementById("addSailCode").value.trim() || null,
       event: document.getElementById("addEvent").value.trim(),
       file: isEdit ? findScan(editingScanId).file : photoDataUrl, // edit keeps the existing photo; replaced with the Storage URL below when adding live
       time: document.getElementById("addTime").value,

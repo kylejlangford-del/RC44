@@ -849,6 +849,22 @@ select:focus, input:focus, textarea:focus {
 .metric-chart .mchart-value-label { fill: var(--muted-2); font-size: 9px; font-family: Inter, sans-serif; }
 .metric-chart .mchart-empty { color: var(--muted); font-size: .8rem; padding: 20px 0; text-align: center; }
 
+.metric-chart__legend-dash {
+  width: 14px !important;
+  height: 0 !important;
+  border-top: 2px dashed var(--stiff);
+  border-radius: 0 !important;
+}
+
+/* Target value shown alongside an OCR'd camber-table value (interpolated flying-shape target). */
+.target-note {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--stiff);
+  font-size: .72rem;
+  font-weight: 600;
+}
+
 @media (max-width: 980px) {
   .split-view { grid-template-columns: 1fr; }
 }
