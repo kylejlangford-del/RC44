@@ -301,7 +301,8 @@ import {
     matches.forEach(function (s) {
       var card = document.createElement("button");
       card.type = "button";
-      card.className = "thumb";
+      var isActive = s.id === compare.left || s.id === compare.right;
+      card.className = "thumb" + (isActive ? " thumb--active" : "");
       card.draggable = true;
       var dotClass = s.boat === "gemera" ? "boat-dot--gemera" : "boat-dot--artemis";
       card.innerHTML =
@@ -319,6 +320,18 @@ import {
       card.querySelector(".thumb__edit").addEventListener("click", function (e) {
         e.stopPropagation();
         openEditDialog(s.id);
+      });
+      // Click (as well as drag) expands this scan into Compare — fills the first empty slot,
+      // or replaces the right slot if both are taken — then scrolls the expanded photo/data/
+      // charts into view, so a click is a one-tap way to see a scan full-size with its numbers.
+      card.addEventListener("click", function () {
+        if (s.id !== compare.left && s.id !== compare.right) {
+          var slot = !compare.left ? "left" : (!compare.right ? "right" : "right");
+          compare[slot] = s.id;
+          updateCompareSlot(slot);
+        }
+        var target = document.getElementById("compareData");
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
       });
       grid.appendChild(card);
     });
@@ -353,6 +366,7 @@ import {
     renderCompareData();
     renderOverlay();
     renderMetricCharts();
+    renderCatalogAll(); // refresh thumb--active highlighting on whichever scan(s) are in Compare
   }
 
   ["left", "right"].forEach(function (slot) {
