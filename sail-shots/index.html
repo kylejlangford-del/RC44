@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#07111d" />
   <title>Sail Shots · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20260922a" />
+  <link rel="stylesheet" href="../styles.css?v=20260922b" />
 </head>
 <body>
   <div class="bg-glow bg-glow--one"></div>
@@ -51,9 +51,10 @@
           <button class="view-toggle__btn" type="button" data-sail="J2">J2</button>
           <button class="view-toggle__btn" type="button" data-sail="J3">J3</button>
         </div>
+        <div class="section-kicker">Date <span style="text-transform:none; font-weight:400; color:var(--muted);">— defaults to the most recent day; click to add more</span></div>
+        <div class="view-toggle" id="dateToggle" role="tablist" style="margin-bottom:18px; flex-wrap:wrap; row-gap:8px;"></div>
         <div class="filter-bar">
           <label class="field-inline"><span>Event</span><select id="fEvent"></select></label>
-          <label class="field-inline"><span>Date</span><select id="fDate"></select></label>
           <label class="field-inline"><span>Boat speed</span><select id="fBsp"></select></label>
           <label class="field-inline"><span>Chock size</span><select id="fChock"></select></label>
           <label class="field-inline"><span>Mast setup</span><select id="fMastSetup"></select></label>
@@ -87,9 +88,22 @@
         </div>
       </section>
 
+      <section class="panel" style="margin-bottom:32px;">
+        <h2 style="margin-top:0;">Compare</h2>
+        <p class="import-step__hint">Drag any thumbnail below into a box here — any two scans, regardless of boat. They drive the charts and overlay below.</p>
+        <div class="compare-drop-grid">
+          <div class="compare-drop" id="compareLeftBox" data-slot="left">
+            <div class="compare-drop__empty">Drag a photo here</div>
+          </div>
+          <div class="compare-drop" id="compareRightBox" data-slot="right">
+            <div class="compare-drop__empty">Drag a photo here</div>
+          </div>
+        </div>
+      </section>
+
       <section class="panel">
         <h2 style="margin-top:0;">Camber, draft &amp; twist</h2>
-        <p class="import-step__hint">From each selected scan's camber table, by height up the leech (25–87%). Both boats plot together when a scan is selected for each.</p>
+        <p class="import-step__hint">From each selected scan's camber table, by height up the leech (25–87%).</p>
         <div class="metric-chart-grid">
           <div class="metric-chart" id="chart-camber" data-metric-title="Camber"></div>
           <div class="metric-chart" id="chart-draft" data-metric-title="Draft"></div>
@@ -99,7 +113,7 @@
 
       <section class="panel">
         <h2 style="margin-top:0;">Overlay</h2>
-        <p class="import-step__hint">Gemera underneath, Artemis on top, aligned and scaled on the mast when both scans are calibrated.</p>
+        <p class="import-step__hint">Left scan underneath, right scan on top, aligned and scaled on the mast when both scans are calibrated.</p>
         <div id="overlayNote" class="pill" style="display:inline-flex; margin:10px 0;"></div>
         <div class="overlay-toggle">
           <span>Artemis opacity</span>
@@ -114,7 +128,7 @@
     <div class="dialog__backdrop"></div>
     <div class="dialog__panel" style="width:min(680px,100%);">
       <div class="dialog__head">
-        <h2>Add scan</h2>
+        <h2 id="addScanDialogTitle">Add scan</h2>
         <button id="addScanClose" class="text-link" type="button">Close</button>
       </div>
       <form id="addScanForm">
@@ -142,10 +156,11 @@
           <label class="field-inline"><span>Main sheet mark</span><input id="addMainSheetMark" type="number" step="0.01"></label>
         </div>
 
-        <label class="file-drop" style="margin:8px 0 12px;">
+        <label id="addPhotoDrop" class="file-drop" style="margin:8px 0 12px;">
           <input id="addPhotoInput" type="file" accept="image/*" required>
           <span>Choose photo…</span>
         </label>
+        <p id="editPhotoNote" class="import-step__hint is-hidden" style="margin:-4px 0 16px;">Editing an existing scan — the photo itself can't be changed here, just the details below.</p>
         <p id="ocrStatus" class="import-step__hint is-hidden" style="margin:-4px 0 16px;"></p>
 
         <div style="display:flex; align-items:center; gap:14px; margin-bottom:18px;">
@@ -188,6 +203,6 @@
   <script src="./data.js?v=20260922a"></script>
   <script src="../main-battens/firebase-config.js?v=20260922e"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script type="module" src="./app.js?v=20260922b"></script>
+  <script type="module" src="./app.js?v=20260922c"></script>
 </body>
 </html>

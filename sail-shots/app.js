@@ -25,6 +25,7 @@ import {
   var liveMode = false;
   var db = null, storage = null;
   var selected = { artemis: null, gemera: null };
+  var compare = { left: null, right: null }; // any two scans, regardless of boat — feeds the charts + overlay
   var sailFilter = ""; // "" = all sails; else "Main" | "G1" | "J2" | "J3"
 
   // Existing scans predate the Main/G1/J2/J3 split — they're all mainsail battens, so tag
@@ -143,7 +144,7 @@ import {
 
   function refreshFilterOptions() {
     populateDropdown("fEvent", distinctValues(function (s) { return s.event; }));
-    populateDropdown("fDate", distinctValues(dateOf));
+    renderDateChips();
     populateDropdown("fBsp", distinctValues(function (s) { return s.boat_ && s.boat_.bsp; }), function (v) { return v + " kn"; });
     populateDropdown("fChock", distinctValues(function (s) { return s.mechanic && s.mechanic.chockSize; }));
     populateDropdown("fMastSetup", distinctValues(function (s) { return s.mechanic && s.mechanic.mastSetup; }));
@@ -166,9 +167,50 @@ import {
       document.getElementById("fTwsLo").value + " – " + document.getElementById("fTwsHi").value + " kn";
   }
 
+  // ---------- Date filter: multi-select chips, defaulting to the most recent day only ----------
+
+  var selectedDates = null; // null = no date filter (all dates shown); Set = only these dates
+  var datesInitialized = false;
+  var MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  function formatDateChip(d) {
+    var parts = d.split("-");
+    var day = parseInt(parts[2], 10);
+    var mon = MONTH_ABBR[parseInt(parts[1], 10) - 1] || parts[1];
+    return day + " " + mon;
+  }
+
+  function renderDateChips() {
+    var dates = distinctValues(dateOf); // ascending
+    if (!datesInitialized) {
+      selectedDates = dates.length ? new Set([dates[dates.length - 1]]) : null;
+      datesInitialized = true;
+    }
+    var wrap = document.getElementById("dateToggle");
+    var allActive = selectedDates === null;
+    var html = "<button type='button' class='view-toggle__btn" + (allActive ? " is-active" : "") + "' data-date=''>All dates</button>";
+    dates.slice().reverse().forEach(function (d) {
+      var active = selectedDates !== null && selectedDates.has(d);
+      html += "<button type='button' class='view-toggle__btn" + (active ? " is-active" : "") + "' data-date='" + d + "'>" + formatDateChip(d) + "</button>";
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll(".view-toggle__btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var d = btn.dataset.date;
+        if (!d) {
+          selectedDates = null;
+        } else {
+          if (selectedDates === null) selectedDates = new Set();
+          if (selectedDates.has(d)) selectedDates.delete(d); else selectedDates.add(d);
+          if (selectedDates.size === 0) selectedDates = null;
+        }
+        renderAll();
+      });
+    });
+  }
+
   function passesFilter(scan) {
     var event = document.getElementById("fEvent").value;
-    var date = document.getElementById("fDate").value;
     var bsp = document.getElementById("fBsp").value;
     var chock = document.getElementById("fChock").value;
     var mastSetup = document.getElementById("fMastSetup").value;
@@ -178,7 +220,7 @@ import {
     var twsHi = Number(document.getElementById("fTwsHi").value);
 
     if (event && scan.event !== event) return false;
-    if (date && dateOf(scan) !== date) return false;
+    if (selectedDates !== null && !selectedDates.has(dateOf(scan))) return false;
     if (bsp && String(scan.boat_ && scan.boat_.bsp) !== bsp) return false;
     if (chock && String(scan.mechanic && scan.mechanic.chockSize) !== chock) return false;
     if (mastSetup && String(scan.mechanic && scan.mechanic.mastSetup) !== mastSetup) return false;
@@ -202,7 +244,7 @@ import {
     });
   });
 
-  ["fEvent", "fDate", "fBsp", "fChock", "fMastSetup", "fTrimtab", "fRake"].forEach(function (id) {
+  ["fEvent", "fBsp", "fChock", "fMastSetup", "fTrimtab", "fRake"].forEach(function (id) {
     document.getElementById(id).addEventListener("change", renderAll);
   });
   ["fTwsLo", "fTwsHi"].forEach(function (id) {
@@ -217,10 +259,11 @@ import {
     });
   });
   document.getElementById("resetFiltersBtn").addEventListener("click", function () {
-    ["fEvent", "fDate", "fBsp", "fChock", "fMastSetup", "fTrimtab", "fRake"].forEach(function (id) {
+    ["fEvent", "fBsp", "fChock", "fMastSetup", "fTrimtab", "fRake"].forEach(function (id) {
       document.getElementById(id).value = "";
     });
     sailFilter = "";
+    datesInitialized = false; // re-defaults to "most recent day only" on next render
     document.querySelectorAll("#sailToggle .view-toggle__btn").forEach(function (b) {
       b.classList.toggle("is-active", b.dataset.sail === "");
     });
@@ -259,7 +302,9 @@ import {
       var card = document.createElement("button");
       card.type = "button";
       card.className = "thumb" + (s.id === selected[boat] ? " thumb--active" : "");
-      card.innerHTML = "<img src='" + s.file + "' alt=''><span>" + scanCaption(s) + "</span>";
+      card.draggable = true;
+      card.innerHTML = "<img src='" + s.file + "' alt=''><span>" + scanCaption(s) + "</span>" +
+        "<button type='button' class='thumb__edit' title='Edit this scan'>&#9998;</button>";
       card.addEventListener("click", function () {
         selected[boat] = s.id;
         renderCatalog(boat);
@@ -267,9 +312,67 @@ import {
         renderOverlay();
         renderMetricCharts();
       });
+      card.addEventListener("dragstart", function (e) {
+        e.dataTransfer.setData("text/plain", s.id);
+        e.dataTransfer.effectAllowed = "copy";
+        card.classList.add("thumb--dragging");
+      });
+      card.addEventListener("dragend", function () {
+        card.classList.remove("thumb--dragging");
+      });
+      card.querySelector(".thumb__edit").addEventListener("click", function (e) {
+        e.stopPropagation();
+        openEditDialog(s.id);
+      });
       grid.appendChild(card);
     });
   }
+
+  // ---------- Compare (drag-and-drop, any two scans regardless of boat) ----------
+
+  function renderCompareBox(slot) {
+    var box = document.getElementById("compare" + (slot === "left" ? "Left" : "Right") + "Box");
+    var scan = compare[slot] ? findScan(compare[slot]) : null;
+    if (!scan) {
+      box.innerHTML = "<div class='compare-drop__empty'>Drag a photo here</div>";
+      return;
+    }
+    box.innerHTML =
+      "<button type='button' class='compare-drop__clear' title='Clear'>&times;</button>" +
+      "<div class='compare-drop__filled'><img src='" + scan.file + "' alt=''>" +
+      "<div class='compare-drop__caption'>" + BOAT_LABEL[scan.boat] + " · " + scanCaption(scan) + "</div></div>";
+    box.querySelector(".compare-drop__clear").addEventListener("click", function () {
+      compare[slot] = null;
+      renderCompareBox(slot);
+      renderOverlay();
+      renderMetricCharts();
+    });
+  }
+
+  function renderCompareBoxes() {
+    renderCompareBox("left");
+    renderCompareBox("right");
+  }
+
+  ["left", "right"].forEach(function (slot) {
+    var box = document.getElementById("compare" + (slot === "left" ? "Left" : "Right") + "Box");
+    box.addEventListener("dragover", function (e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      box.classList.add("is-dragover");
+    });
+    box.addEventListener("dragleave", function () { box.classList.remove("is-dragover"); });
+    box.addEventListener("drop", function (e) {
+      e.preventDefault();
+      box.classList.remove("is-dragover");
+      var id = e.dataTransfer.getData("text/plain");
+      if (!id || !findScan(id)) return;
+      compare[slot] = id;
+      renderCompareBox(slot);
+      renderOverlay();
+      renderMetricCharts();
+    });
+  });
 
   // ---------- Stage (single-scan view + data) ----------
 
@@ -341,13 +444,13 @@ import {
   }
 
   function renderOverlay() {
-    var a = selected.artemis ? findScan(selected.artemis) : null;
-    var g = selected.gemera ? findScan(selected.gemera) : null;
+    var g = compare.left ? findScan(compare.left) : null; // base, underneath
+    var a = compare.right ? findScan(compare.right) : null; // overlay, on top
     var wrap = document.getElementById("overlayStage");
     var note = document.getElementById("overlayNote");
 
     if (!a || !g) {
-      wrap.innerHTML = "<div class='scan-stage__empty'>Select a scan for both boats to overlay them.</div>";
+      wrap.innerHTML = "<div class='scan-stage__empty'>Drag a scan into both Compare boxes above to overlay them.</div>";
       note.textContent = "";
       return;
     }
@@ -404,7 +507,7 @@ import {
         overlayEl.style.transform = "translate(" + ((stageW - aImg.naturalWidth * oScale) / 2) + "px," +
           ((stageH - aImg.naturalHeight * oScale) / 2) + "px) scale(" + oScale + ")";
         note.textContent = "Not aligned — set mast alignment on " +
-          (!g.mast && !a.mast ? "both scans" : (!g.mast ? "the Gemera scan" : "the Artemis scan")) +
+          (!g.mast && !a.mast ? "both scans" : (!g.mast ? "the left scan" : "the right scan")) +
           " for an accurate overlay.";
         note.classList.add("pill--warn");
       }
@@ -478,26 +581,28 @@ import {
     return svg;
   }
 
+  var SLOT_COLOR = { left: "var(--artemis)", right: "var(--gemera)" };
+
   function renderMetricCharts() {
-    var boatsWithScan = ["artemis", "gemera"].map(function (boat) {
-      var scan = selected[boat] ? findScan(selected[boat]) : null;
-      return { boat: boat, scan: scan };
+    var slotsWithScan = ["left", "right"].map(function (slot) {
+      var scan = compare[slot] ? findScan(compare[slot]) : null;
+      return { slot: slot, scan: scan };
     }).filter(function (b) { return b.scan && b.scan.camber && b.scan.camber.length; });
 
     METRIC_CHARTS.forEach(function (mc) {
       var container = document.getElementById(mc.id);
       container.innerHTML = "";
 
-      if (!boatsWithScan.length) {
+      if (!slotsWithScan.length) {
         container.innerHTML = "<div class='metric-chart__title'>" + mc.title + "</div>" +
-          "<div class='mchart-empty'>Select a scan to see " + mc.title.toLowerCase() + ".</div>";
+          "<div class='mchart-empty'>Drag a scan into a Compare box to see " + mc.title.toLowerCase() + ".</div>";
         return;
       }
 
-      var seriesList = boatsWithScan.map(function (b) {
+      var seriesList = slotsWithScan.map(function (b) {
         return {
-          label: BOAT_LABEL[b.boat],
-          color: BOAT_COLOR[b.boat],
+          label: BOAT_LABEL[b.scan.boat] + " · " + (b.scan.time ? b.scan.time.slice(0, 16).replace("T", " ") : b.scan.id),
+          color: SLOT_COLOR[b.slot],
           points: b.scan.camber
             .filter(function (row) { return row[mc.key] !== null && row[mc.key] !== undefined; })
             .map(function (row) { return { h: row.height, v: row[mc.key] }; })
@@ -520,6 +625,7 @@ import {
       renderCatalog(boat);
       renderStage(boat);
     });
+    renderCompareBoxes();
     renderOverlay();
     renderMetricCharts();
   }
@@ -648,6 +754,67 @@ import {
   var photoDataUrl = null;
   var photoFile = null;
   var pendingMast = null;
+  var editingScanId = null; // set when the dialog is open in "edit an existing scan" mode
+
+  function resetAddDialogChrome() {
+    editingScanId = null;
+    document.getElementById("addScanDialogTitle").textContent = "Add scan";
+    document.getElementById("addScanSubmitBtn").textContent = "Save scan";
+    document.getElementById("addPhotoInput").required = true;
+    document.getElementById("addPhotoDrop").classList.remove("is-hidden");
+    document.getElementById("editPhotoNote").classList.add("is-hidden");
+  }
+
+  function fillCamberRows(camber) {
+    var rows = document.querySelectorAll("#camberRows tr");
+    rows.forEach(function (tr) {
+      tr.querySelectorAll("input").forEach(function (inp) { inp.value = ""; });
+    });
+    (camber || []).slice(0, rows.length).forEach(function (row, i) {
+      var inputs = rows[i].querySelectorAll("input");
+      var vals = [row.height, row.camber, row.draft, row.twist, row.entry, row.exit, row.foreCam, row.backCam];
+      vals.forEach(function (v, j) { if (inputs[j]) inputs[j].value = (v === null || v === undefined) ? "" : v; });
+    });
+  }
+
+  function openEditDialog(scanId) {
+    var scan = findScan(scanId);
+    if (!scan) return;
+    addForm.reset();
+    editingScanId = scanId;
+    photoDataUrl = scan.file;
+    photoFile = null;
+    pendingMast = scan.mast || null;
+
+    document.getElementById("addScanDialogTitle").textContent = "Edit scan";
+    document.getElementById("addScanSubmitBtn").textContent = "Save changes";
+    document.getElementById("addPhotoInput").required = false;
+    document.getElementById("addPhotoDrop").classList.add("is-hidden");
+    document.getElementById("editPhotoNote").classList.remove("is-hidden");
+
+    document.getElementById("addBoat").value = scan.boat || "artemis";
+    document.getElementById("addSail").value = scan.sail || "Main";
+    document.getElementById("addEvent").value = scan.event || "";
+    document.getElementById("addTime").value = scan.time || "";
+    document.getElementById("addTack").value = scan.tack || "";
+    document.getElementById("addBatten").value = scan.battenLabel || "";
+    document.getElementById("addChock").value = (scan.mechanic && scan.mechanic.chockSize) || "";
+    document.getElementById("addTws").value = (scan.wind && scan.wind.tws !== undefined && scan.wind.tws !== null) ? scan.wind.tws : "";
+    document.getElementById("addTwa").value = (scan.wind && scan.wind.twa !== undefined && scan.wind.twa !== null) ? scan.wind.twa : "";
+    document.getElementById("addBsp").value = (scan.boat_ && scan.boat_.bsp !== undefined && scan.boat_.bsp !== null) ? scan.boat_.bsp : "";
+    var m = scan.mechanic || {};
+    document.getElementById("addForestay").value = (m.forestay !== undefined && m.forestay !== null) ? m.forestay : "";
+    document.getElementById("addRake").value = (m.rake !== undefined && m.rake !== null) ? m.rake : "";
+    document.getElementById("addTrimtab").value = (m.trimtab !== undefined && m.trimtab !== null) ? m.trimtab : "";
+    document.getElementById("addMastSetup").value = (m.mastSetup !== undefined && m.mastSetup !== null) ? m.mastSetup : "";
+    document.getElementById("addMainSheetMark").value = (m.mainSheetMark !== undefined && m.mainSheetMark !== null) ? m.mainSheetMark : "";
+    fillCamberRows(scan.camber);
+
+    document.getElementById("addMastStatus").textContent = scan.mast ? "Set" : "Not set";
+    document.getElementById("addMastBtn").disabled = false;
+    setOcrStatus("");
+    document.getElementById("addScanDialog").classList.remove("is-hidden");
+  }
 
   document.getElementById("addPhotoInput").addEventListener("change", function (e) {
     var file = e.target.files[0];
@@ -777,7 +944,8 @@ import {
 
   addForm.addEventListener("submit", function (e) {
     e.preventDefault();
-    if (!photoFile) { alert("Choose a photo first."); return; }
+    var isEdit = !!editingScanId;
+    if (!isEdit && !photoFile) { alert("Choose a photo first."); return; }
 
     var camber = [];
     document.querySelectorAll("#camberRows tr").forEach(function (tr) {
@@ -790,13 +958,13 @@ import {
       });
     });
 
-    var id = document.getElementById("addBoat").value + "-" + Date.now().toString(36);
+    var id = isEdit ? editingScanId : (document.getElementById("addBoat").value + "-" + Date.now().toString(36));
     var scan = {
       id: id,
       boat: document.getElementById("addBoat").value,
       sail: document.getElementById("addSail").value,
       event: document.getElementById("addEvent").value.trim(),
-      file: photoDataUrl, // replaced with the Storage URL below when live
+      file: isEdit ? findScan(editingScanId).file : photoDataUrl, // edit keeps the existing photo; replaced with the Storage URL below when adding live
       time: document.getElementById("addTime").value,
       tack: document.getElementById("addTack").value,
       battenLabel: document.getElementById("addBatten").value,
@@ -816,7 +984,6 @@ import {
 
     function finishSave(finalScan) {
       submitBtn.disabled = false;
-      submitBtn.textContent = "Save scan";
       addForm.reset();
       photoDataUrl = null;
       photoFile = null;
@@ -824,13 +991,32 @@ import {
       document.getElementById("addMastStatus").textContent = "Not set";
       document.getElementById("addMastBtn").disabled = true;
       setOcrStatus("");
+      resetAddDialogChrome();
       document.getElementById("addScanDialog").classList.add("is-hidden");
       if (!liveMode) {
-        scans.push(finalScan);
+        var idx = scans.findIndex(function (s) { return s.id === finalScan.id; });
+        if (idx === -1) scans.push(finalScan); else scans[idx] = finalScan;
         persistLocal();
         renderAll();
       }
-      // in live mode, the onSnapshot listener delivers the new scan and re-renders itself
+      // in live mode, the onSnapshot listener delivers the change and re-renders itself
+    }
+
+    if (isEdit) {
+      submitBtn.textContent = "Saving…";
+      if (liveMode) {
+        setDoc(doc(db, COLLECTION, id), scan).then(function () {
+          finishSave(scan);
+        }).catch(function (e) {
+          console.error("Save changes failed", e);
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Save changes";
+          alert("Couldn't save these changes — check your connection. (" + e.message + ")");
+        });
+      } else {
+        finishSave(scan);
+      }
+      return;
     }
 
     if (liveMode) {
@@ -858,9 +1044,18 @@ import {
   });
 
   document.getElementById("addScanBtn").addEventListener("click", function () {
+    addForm.reset();
+    photoDataUrl = null;
+    photoFile = null;
+    pendingMast = null;
+    document.getElementById("addMastStatus").textContent = "Not set";
+    document.getElementById("addMastBtn").disabled = true;
+    setOcrStatus("");
+    resetAddDialogChrome();
     document.getElementById("addScanDialog").classList.remove("is-hidden");
   });
   document.getElementById("addScanClose").addEventListener("click", function () {
+    resetAddDialogChrome();
     document.getElementById("addScanDialog").classList.add("is-hidden");
   });
 
