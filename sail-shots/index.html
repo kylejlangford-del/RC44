@@ -159,9 +159,13 @@
         <p id="editPhotoNote" class="import-step__hint is-hidden" style="margin:-4px 0 16px;">Editing an existing scan — the photo itself can't be changed here, just the details below.</p>
         <p id="ocrStatus" class="import-step__hint is-hidden" style="margin:-4px 0 16px;"></p>
 
-        <div style="display:flex; align-items:center; gap:14px; margin-bottom:18px;">
+        <div style="display:flex; align-items:center; gap:14px; margin-bottom:12px; flex-wrap:wrap;">
           <button id="addMastBtn" class="ghost-button" type="button" disabled>Set mast alignment</button>
           <span style="font-size:.82rem; color:var(--muted);">Mast alignment: <strong id="addMastStatus">Not set</strong> (optional — needed for an accurate overlay)</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px; margin-bottom:18px; flex-wrap:wrap;">
+          <button id="addDraftBtn" class="ghost-button" type="button" disabled>Scan draft stripe</button>
+          <span style="font-size:.82rem; color:var(--muted);">Finds the draft stripe in the photo and fills a camber-table row for you — check the numbers before saving.</span>
         </div>
 
         <div class="section-kicker">Camber table (optional)</div>
@@ -201,6 +205,36 @@
     </div>
   </div>
 
+  <div id="draftDialog" class="dialog is-hidden">
+    <div class="dialog__backdrop"></div>
+    <div class="dialog__panel" style="width:min(760px,100%);">
+      <div class="dialog__head">
+        <h2>Draft stripe scan</h2>
+        <button id="draftClose" class="text-link" type="button">Close</button>
+      </div>
+      <p id="draftHint" class="import-step__hint" style="margin-bottom:12px;"></p>
+      <div id="draftStage" class="cal-stage"></div>
+      <div id="draftResults" class="draft-results is-hidden">
+        <div class="draft-results__grid">
+          <div><span>Camber</span><strong id="draftCamber">—</strong></div>
+          <div><span>Draft pos.</span><strong id="draftDraft">—</strong></div>
+          <div><span>Entry</span><strong id="draftEntry">—</strong></div>
+          <div><span>Exit</span><strong id="draftExit">—</strong></div>
+          <div><span>Twist*</span><strong id="draftTwist">—</strong></div>
+        </div>
+        <p style="font-size:.76rem; color:var(--muted); margin:6px 0 0;">*Twist only shown once mast alignment is set. Double-check every sign/value before saving — this is a first pass, not gospel.</p>
+      </div>
+      <div style="display:flex; gap:14px; margin-top:16px; flex-wrap:wrap; align-items:center;">
+        <button id="draftManualBtn" class="ghost-button" type="button">Place chord points by hand</button>
+        <button id="draftRedetectBtn" class="ghost-button" type="button">Re-scan</button>
+        <label class="field-inline" style="margin:0;"><span>Fill row</span>
+          <select id="draftRowSelect"></select>
+        </label>
+        <button id="draftFillBtn" class="ghost-button" type="button" disabled>Fill row</button>
+      </div>
+    </div>
+  </div>
+
   <div id="scanPreviewDialog" class="dialog is-hidden">
     <div class="dialog__backdrop"></div>
     <div class="dialog__panel" style="width:min(720px,100%); max-height:90vh; overflow-y:auto;">
@@ -215,6 +249,7 @@
   <script src="./data.js?v=20260922a"></script>
   <script src="../main-battens/firebase-config.js?v=20260922e"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script type="module" src="./app.js?v=20260923i"></script>
+  <script src="./draftstripe.js?v=20260923a"></script>
+  <script type="module" src="./app.js?v=20260923j"></script>
 </body>
 </html>

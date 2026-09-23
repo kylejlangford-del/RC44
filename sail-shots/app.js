@@ -1525,6 +1525,7 @@ import {
 
     document.getElementById("addMastStatus").textContent = scan.mast ? "Set" : "Not set";
     document.getElementById("addMastBtn").disabled = false;
+    document.getElementById("addDraftBtn").disabled = false;
     setOcrStatus("");
     document.getElementById("addScanDialog").classList.remove("is-hidden");
   }
@@ -1540,6 +1541,7 @@ import {
     reader.onload = function () {
       photoDataUrl = reader.result;
       document.getElementById("addMastBtn").disabled = false;
+      document.getElementById("addDraftBtn").disabled = false;
       scanPhotoForData(photoDataUrl);
     };
     reader.readAsDataURL(file);
@@ -1652,6 +1654,219 @@ import {
     }, pendingMast, pendingMast2);
   });
 
+  // ---------- Draft-stripe scan dialog ----------
+  // Auto-detects a draft stripe (draftstripe.js) and derives camber/draft/entry/exit from its
+  // own endpoints. If that's flagged unreliable (or nothing was found), the sailor can tap the
+  // two chord ends by hand instead — the detected curve shape (when there is one) is kept and
+  // just re-measured against the new chord, so a bad photo edge doesn't need a full re-detect.
+  var draft = { curveNat: null, chordANat: null, chordBNat: null, natW: 0, natH: 0, manualMode: false, manualPts: [], imgEl: null, svg: null, result: null };
+
+  function draftToXf(p) { return { xf: p.x / draft.natW, yf: p.y / draft.natH }; }
+
+  function draftPopulateRowSelect() {
+    var sel = document.getElementById("draftRowSelect");
+    var rows = document.querySelectorAll("#camberRows tr");
+    sel.innerHTML = "";
+    var emptyIdx = -1;
+    rows.forEach(function (tr, i) {
+      var h = tr.querySelectorAll("input")[0].value;
+      if (emptyIdx === -1 && h === "") emptyIdx = i;
+      var opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = "Row " + (i + 1) + (h !== "" ? " (height " + h + ")" : " (empty)");
+      sel.appendChild(opt);
+    });
+    sel.value = String(emptyIdx === -1 ? 0 : emptyIdx);
+  }
+
+  function draftDrawOverlay() {
+    var svg = draft.svg, img = draft.imgEl;
+    if (!svg || !img) return;
+    var w = img.clientWidth, h = img.clientHeight;
+    if (!w || !h) return;
+    svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+    svg.innerHTML = "";
+    if (draft.curveNat && draft.curveNat.length > 1) {
+      var pts = draft.curveNat.map(function (p) {
+        var f = draftToXf(p);
+        return (f.xf * w) + "," + (f.yf * h);
+      }).join(" ");
+      var poly = document.createElementNS(svg.namespaceURI, "polyline");
+      poly.setAttribute("points", pts);
+      poly.setAttribute("class", "draft-curve");
+      svg.appendChild(poly);
+    }
+    if (draft.chordANat && draft.chordBNat) {
+      var a = draftToXf(draft.chordANat), b = draftToXf(draft.chordBNat);
+      var line = document.createElementNS(svg.namespaceURI, "line");
+      line.setAttribute("x1", a.xf * w); line.setAttribute("y1", a.yf * h);
+      line.setAttribute("x2", b.xf * w); line.setAttribute("y2", b.yf * h);
+      line.setAttribute("class", "draft-chord");
+      svg.appendChild(line);
+      [a, b].forEach(function (p) {
+        var c = document.createElementNS(svg.namespaceURI, "circle");
+        c.setAttribute("cx", p.xf * w); c.setAttribute("cy", p.yf * h);
+        c.setAttribute("r", 8);
+        c.setAttribute("class", "draft-endpoint" + (draft.manualMode ? " draft-endpoint--manual" : ""));
+        svg.appendChild(c);
+      });
+    }
+  }
+
+  function draftShowResult() {
+    var res = (draft.chordANat && draft.chordBNat && draft.curveNat && draft.curveNat.length > 1)
+      ? DraftStripe.recomputeWithChord(draft.curveNat, draft.chordANat, draft.chordBNat)
+      : null;
+    draft.result = res;
+    var box = document.getElementById("draftResults");
+    if (!res) {
+      box.classList.add("is-hidden");
+      document.getElementById("draftFillBtn").disabled = true;
+      return;
+    }
+    box.classList.remove("is-hidden");
+    document.getElementById("draftCamber").textContent = res.camberPct.toFixed(1) + "%";
+    document.getElementById("draftDraft").textContent = res.draftPct.toFixed(0) + "%";
+    document.getElementById("draftEntry").textContent = res.entryDeg.toFixed(1) + "°";
+    document.getElementById("draftExit").textContent = res.exitDeg.toFixed(1) + "°";
+    var twistEl = document.getElementById("draftTwist");
+    if (pendingMast) {
+      var mvx = (pendingMast.x2 - pendingMast.x1) * draft.natW;
+      var mvy = (pendingMast.y2 - pendingMast.y1) * draft.natH;
+      var cvx = draft.chordBNat.x - draft.chordANat.x, cvy = draft.chordBNat.y - draft.chordANat.y;
+      var mLen = Math.sqrt(mvx * mvx + mvy * mvy), cLen = Math.sqrt(cvx * cvx + cvy * cvy);
+      if (mLen > 0 && cLen > 0) {
+        var cross = (cvx * mvy - cvy * mvx) / (mLen * cLen);
+        var dot = (cvx * mvx + cvy * mvy) / (mLen * cLen);
+        var ang = Math.atan2(cross, dot) * 180 / Math.PI;
+        twistEl.textContent = (Math.abs(ang) - 90).toFixed(1) + "°";
+      } else {
+        twistEl.textContent = "—";
+      }
+    } else {
+      twistEl.textContent = "—";
+    }
+    document.getElementById("draftFillBtn").disabled = false;
+  }
+
+  function draftRunDetection() {
+    if (!draft.imgEl) return;
+    draft.manualMode = false;
+    draft.manualPts = [];
+    draft.natW = draft.imgEl.naturalWidth;
+    draft.natH = draft.imgEl.naturalHeight;
+    var out = DraftStripe.analyze(draft.imgEl);
+    var hintEl = document.getElementById("draftHint");
+    if (out.status === "none") {
+      draft.curveNat = null; draft.chordANat = null; draft.chordBNat = null;
+      hintEl.textContent = out.reason + " Tap “Place chord points by hand” to mark the stripe yourself.";
+      draftDrawOverlay();
+      draftShowResult();
+      return;
+    }
+    draft.curveNat = out.curve;
+    draft.chordANat = out.chordA;
+    draft.chordBNat = out.chordB;
+    hintEl.textContent = out.status === "flagged"
+      ? out.reason
+      : "Auto-detected — check it lines up with the stripe, or place points by hand to override the ends.";
+    draftDrawOverlay();
+    draftShowResult();
+  }
+
+  function openDraftDialog(src) {
+    var dlg = document.getElementById("draftDialog");
+    dlg.classList.remove("is-hidden");
+    var stage = document.getElementById("draftStage");
+    stage.innerHTML = "";
+    var img = document.createElement("img");
+    img.src = src;
+    img.className = "cal-image";
+    stage.appendChild(img);
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "cal-svg");
+    stage.appendChild(svg);
+    draft.imgEl = img;
+    draft.svg = svg;
+    draft.manualMode = false;
+    draft.manualPts = [];
+    draft.curveNat = null;
+    draft.chordANat = null;
+    draft.chordBNat = null;
+    draftPopulateRowSelect();
+    document.getElementById("draftHint").textContent = "Scanning the photo for a draft stripe…";
+    document.getElementById("draftResults").classList.add("is-hidden");
+    document.getElementById("draftFillBtn").disabled = true;
+
+    function ready() { draftRunDetection(); }
+    if (img.complete && img.naturalWidth) ready();
+    else img.addEventListener("load", ready, { once: true });
+
+    // Tap-to-place, mirroring the mast-calibration stage's click handling (which already works
+    // reliably on iPhone Safari via its synthesized click-from-tap) — no dragging needed here.
+    stage.onclick = function (e) {
+      if (!draft.manualMode) return;
+      var rect = img.getBoundingClientRect();
+      var xf = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+      var yf = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+      var p = { x: xf * draft.natW, y: yf * draft.natH };
+      if (draft.manualPts.length >= 2) draft.manualPts = [];
+      draft.manualPts.push(p);
+      if (draft.manualPts.length === 2) {
+        draft.chordANat = draft.manualPts[0];
+        draft.chordBNat = draft.manualPts[1];
+        document.getElementById("draftHint").textContent = "Chord points set by hand. Tap again to redo, or Fill row.";
+        draftShowResult();
+      } else {
+        draft.chordANat = p;
+        draft.chordBNat = null;
+        document.getElementById("draftHint").textContent = "Now tap the other end of the stripe.";
+        document.getElementById("draftResults").classList.add("is-hidden");
+        document.getElementById("draftFillBtn").disabled = true;
+      }
+      draftDrawOverlay();
+    };
+  }
+
+  document.getElementById("addDraftBtn").addEventListener("click", function () {
+    if (!photoDataUrl) return;
+    openDraftDialog(photoDataUrl);
+  });
+  document.getElementById("draftClose").addEventListener("click", function () {
+    document.getElementById("draftDialog").classList.add("is-hidden");
+    document.getElementById("draftStage").onclick = null;
+    if (scanPreviewId) document.getElementById("scanPreviewDialog").classList.remove("is-hidden");
+  });
+  document.getElementById("draftRedetectBtn").addEventListener("click", draftRunDetection);
+  document.getElementById("draftManualBtn").addEventListener("click", function () {
+    draft.manualMode = true;
+    draft.manualPts = [];
+    draft.chordANat = null;
+    draft.chordBNat = null;
+    document.getElementById("draftResults").classList.add("is-hidden");
+    document.getElementById("draftFillBtn").disabled = true;
+    document.getElementById("draftHint").textContent = "Tap one end of the draft stripe, then the other.";
+    draftDrawOverlay();
+  });
+  document.getElementById("draftFillBtn").addEventListener("click", function () {
+    if (!draft.result) return;
+    var idx = Number(document.getElementById("draftRowSelect").value);
+    var rows = document.querySelectorAll("#camberRows tr");
+    var tr = rows[idx];
+    if (!tr) return;
+    var inputs = tr.querySelectorAll("input");
+    // [height, camber, draft, twist, entry, exit, foreCam, backCam]
+    inputs[1].value = draft.result.camberPct.toFixed(1);
+    inputs[2].value = draft.result.draftPct.toFixed(0);
+    var twistText = document.getElementById("draftTwist").textContent;
+    if (twistText !== "—") inputs[3].value = parseFloat(twistText);
+    inputs[4].value = draft.result.entryDeg.toFixed(1);
+    inputs[5].value = draft.result.exitDeg.toFixed(1);
+    document.getElementById("draftHint").textContent = "Filled row " + (idx + 1) + " — check the numbers, then close this and review the table before saving.";
+    draftPopulateRowSelect();
+    document.getElementById("draftRowSelect").value = String(idx);
+  });
+
   function numOrNull(id) {
     var v = document.getElementById(id).value;
     return v === "" ? null : Number(v);
@@ -1708,6 +1923,7 @@ import {
       pendingMast2 = null;
       document.getElementById("addMastStatus").textContent = "Not set";
       document.getElementById("addMastBtn").disabled = true;
+      document.getElementById("addDraftBtn").disabled = true;
       setOcrStatus("");
       resetAddDialogChrome();
       document.getElementById("addScanDialog").classList.add("is-hidden");
@@ -1813,6 +2029,7 @@ import {
     pendingMast2 = null;
     document.getElementById("addMastStatus").textContent = "Not set";
     document.getElementById("addMastBtn").disabled = true;
+    document.getElementById("addDraftBtn").disabled = true;
     setOcrStatus("");
     resetAddDialogChrome();
     document.getElementById("addScanDialog").classList.remove("is-hidden");

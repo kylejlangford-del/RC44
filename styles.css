@@ -1305,6 +1305,50 @@ select:focus, input:focus, textarea:focus {
 
 .cal-loupe.is-visible { display: block; }
 
+/* ---------- Draft-stripe scan dialog ---------- */
+.draft-curve {
+  fill: none;
+  stroke: #ffcf5c;
+  stroke-width: 3;
+}
+.draft-chord {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+.draft-endpoint {
+  fill: var(--accent);
+  stroke: #07111d;
+  stroke-width: 2;
+}
+.draft-endpoint--manual { fill: var(--stiff); cursor: grab; }
+.draft-results {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--line);
+}
+.draft-results__grid {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+.draft-results__grid div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.draft-results__grid span {
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+.draft-results__grid strong {
+  font-size: 1.15rem;
+}
+
 /* ---------- Wind Calibrator v2: boat tabs, grid tables ---------- */
 
 .boat-tabs {
