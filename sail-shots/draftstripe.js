@@ -73,6 +73,90 @@
     return mask;
   }
 
+  // Fast separable box blur (mean over a square window), used as a cheap local-background
+  // estimate -- the same role a Gaussian blur plays in the validated Python/OpenCV prototype,
+  // but done with running sums so it stays fast on a phone at these image sizes.
+  function boxBlur(src, w, h, r) {
+    if (r <= 0) return src.slice();
+    var tmp = new Float32Array(w * h);
+    var out = new Float32Array(w * h);
+    var win = 2 * r + 1;
+    for (var y = 0; y < h; y++) {
+      var row = y * w;
+      var acc = 0;
+      for (var x = -r; x <= r; x++) acc += src[row + Math.min(w - 1, Math.max(0, x))];
+      for (var x2 = 0; x2 < w; x2++) {
+        tmp[row + x2] = acc / win;
+        var addX = Math.min(w - 1, x2 + r + 1), subX = Math.max(0, x2 - r);
+        acc += src[row + addX] - src[row + subX];
+      }
+    }
+    for (var x3 = 0; x3 < w; x3++) {
+      var acc2 = 0;
+      for (var y2 = -r; y2 <= r; y2++) acc2 += tmp[Math.min(h - 1, Math.max(0, y2)) * w + x3];
+      for (var y3 = 0; y3 < h; y3++) {
+        out[y3 * w + x3] = acc2 / win;
+        var addY = Math.min(h - 1, y3 + r + 1), subY = Math.max(0, y3 - r);
+        acc2 += tmp[addY * w + x3] - tmp[subY * w + x3];
+      }
+    }
+    return out;
+  }
+
+  // Second detection mode: a pale/light-coloured stripe on dark cloth (the common case on
+  // dark laminate sails, as opposed to a red/coloured stripe). Instead of a colour channel,
+  // this looks for thin ridges that are brighter than their own local surroundings -- a cheap
+  // JS stand-in for a white top-hat filter, validated against real dark-sail photos.
+  function computeMaskLight(work) {
+    var w = work.w, h = work.h, data = work.data;
+    var n = w * h;
+    var lum = new Float32Array(n);
+    for (var i = 0; i < n; i++) {
+      var o = i * 4;
+      lum[i] = 0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2];
+    }
+    var bgR = Math.max(2, Math.round(Math.min(w, h) * 0.03));
+    var bg = boxBlur(lum, w, h, bgR);
+    var residual = new Float32Array(n);
+    for (var j = 0; j < n; j++) residual[j] = lum[j] - bg[j];
+
+    // Exclude sky / very bright regions (a strong, dominant edge there would otherwise
+    // swamp everything else). Judge "is this area sky or sail cloth" from the BLURRED
+    // background brightness, not the raw pixel -- a thin bright stripe barely moves its
+    // own local average (the blur radius is well wider than the stripe), so this keeps
+    // stripe pixels in even when the stripe itself is nearly as bright as the sky, while
+    // still rejecting the sky region (which is uniformly bright, blurred or not).
+    var sumBg = 0;
+    for (var jj = 0; jj < n; jj++) sumBg += bg[jj];
+    var meanBg = sumBg / n;
+    var sqBg = 0;
+    for (var jk = 0; jk < n; jk++) { var db = bg[jk] - meanBg; sqBg += db * db; }
+    var stdBg = Math.sqrt(sqBg / n);
+    var darkCut = Math.min(195, Math.max(115, meanBg + 0.4 * stdBg));
+    var sailMask = new Uint8Array(n);
+    for (var k = 0; k < n; k++) sailMask[k] = bg[k] < darkCut ? 1 : 0;
+    var erR = Math.max(2, Math.round(Math.min(w, h) * 0.018));
+    sailMask = erode(sailMask, w, h, erR);
+
+    var residSum = 0, residCount = 0;
+    for (var m = 0; m < n; m++) {
+      if (!sailMask[m]) continue;
+      residSum += residual[m]; residCount++;
+    }
+    var residMean = residCount ? residSum / residCount : 0;
+    var sqR = 0;
+    for (var mm = 0; mm < n; mm++) {
+      if (!sailMask[mm]) continue;
+      var dr = residual[mm] - residMean; sqR += dr * dr;
+    }
+    var residStd = residCount ? Math.sqrt(sqR / residCount) : 1;
+    var rThresh = Math.max(residMean + 2.2 * residStd, residMean + 5);
+
+    var mask = new Uint8Array(n);
+    for (var p = 0; p < n; p++) mask[p] = (sailMask[p] && residual[p] > rThresh) ? 1 : 0;
+    return mask;
+  }
+
   // Separable binary dilate/erode (max/min over a square window) for speed.
   function dilate(mask, w, h, r) {
     if (r <= 0) return mask;
@@ -165,6 +249,7 @@
       var score = span * (1 - Math.min(fill, 0.9));
       if (score > bestScore) { bestScore = score; best = c; }
     });
+    if (best) best.score = bestScore;
     return best;
   }
 
@@ -249,20 +334,42 @@
     };
   }
 
+  // Runs one mask-building pass through the shared close/open + connected-components +
+  // scoring pipeline. `closeMul` widens the closing step for modes whose stripe tends to be
+  // dashed/broken (the light-stripe mode) so nearby fragments bridge into one component.
+  function detectFromMask(mask, w, h, closeMul) {
+    var closeR = Math.max(3, Math.round(Math.min(w, h) * 0.018 * (closeMul || 1)));
+    mask = dilate(mask, w, h, closeR);
+    mask = erode(mask, w, h, closeR);
+    // The "open" (noise-removal) step must stay sized to the stripe's own thickness, NOT to
+    // however wide we had to make the close step to bridge dashes -- otherwise a big closeMul
+    // (needed to bridge a dashed stripe) also inflates the open radius past the stripe's own
+    // thickness and erases it completely after closing. Base it on the un-multiplied radius.
+    var baseR = Math.max(3, Math.round(Math.min(w, h) * 0.018));
+    var openR = Math.max(1, Math.round(baseR * 0.2));
+    mask = erode(mask, w, h, openR);
+    mask = dilate(mask, w, h, openR);
+    var comps = connectedComponents(mask, w, h);
+    return pickStripe(comps, w, h);
+  }
+
   function analyze(imgEl) {
     var work = buildWorkingCanvas(imgEl, 900);
     if (!work) return { status: "none", reason: "Couldn't read this photo's pixels (cross-origin image)." };
 
-    var mask = computeMask(work);
-    var closeR = Math.max(3, Math.round(Math.min(work.w, work.h) * 0.018));
-    mask = dilate(mask, work.w, work.h, closeR);
-    mask = erode(mask, work.w, work.h, closeR);
-    var openR = Math.max(1, Math.round(closeR * 0.2));
-    mask = erode(mask, work.w, work.h, openR);
-    mask = dilate(mask, work.w, work.h, openR);
+    // Try two independent detectors and keep whichever finds the more convincing stripe:
+    // a coloured (red-ish) stripe via LAB 'a', and a pale stripe on dark cloth via local
+    // brightness contrast. Most dark-hulled/dark-laminate sails use the latter.
+    var redBest = detectFromMask(computeMask(work), work.w, work.h, 1);
+    var lightBest = detectFromMask(computeMaskLight(work), work.w, work.h, 2.2);
 
-    var comps = connectedComponents(mask, work.w, work.h);
-    var best = pickStripe(comps, work.w, work.h);
+    var best = null, mode = null;
+    if (redBest && lightBest) {
+      if (redBest.score >= lightBest.score) { best = redBest; mode = "colour"; }
+      else { best = lightBest; mode = "light"; }
+    } else if (redBest) { best = redBest; mode = "colour"; }
+    else if (lightBest) { best = lightBest; mode = "light"; }
+
     if (!best) return { status: "none", reason: "Couldn't find a clear draft stripe in this photo." };
 
     var curve = extractCurve(best);
@@ -289,6 +396,7 @@
     return {
       status: clipped ? "flagged" : "ok",
       reason: clipped ? "One end of the stripe looks like it's cut off by the edge of the photo — check the chord ends, or place them by hand." : "",
+      mode: mode,
       curve: curveNat,
       chordA: chordANat,
       chordB: chordBNat,
