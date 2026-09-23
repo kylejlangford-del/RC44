@@ -1641,8 +1641,49 @@ import {
     document.getElementById("addLeechStatus").textContent = scan.leech ? "Set" : "Not set";
     document.getElementById("addLeechBtn").disabled = false;
     document.getElementById("addDraftBtn").disabled = false;
+    document.getElementById("draftAutoStatus").textContent = "Editing an existing scan — tap “Scan draft stripe” if you want to re-scan its photo.";
     setOcrStatus("");
     document.getElementById("addScanDialog").classList.remove("is-hidden");
+  }
+
+  // Auto-runs mast alignment + draft-stripe detection the moment a photo is chosen, so on the
+  // boat this is a single tap (choose photo) rather than choose-photo-then-three-more-dialogs.
+  // Both remain overridable via their own buttons for a bad guess or a second stripe/height.
+  function autoFillOnPhotoChoice(dataUrl) {
+    var img = new Image();
+    img.onload = function () {
+      if (!pendingMast) {
+        var mastGuess = autoDetectMast(img);
+        if (mastGuess) {
+          pendingMast = mastGuess;
+          document.getElementById("addMastStatus").textContent = "Set (auto — check it)";
+        }
+      }
+      if (typeof DraftStripe !== "undefined") {
+        var out = DraftStripe.analyze(img);
+        var statusEl = document.getElementById("draftAutoStatus");
+        if (out.status === "ok") {
+          var rows = document.querySelectorAll("#camberRows tr");
+          var target = null;
+          for (var i = 0; i < rows.length; i++) {
+            if (rows[i].querySelectorAll("input")[1].value === "") { target = rows[i]; break; }
+          }
+          if (target) {
+            var inputs = target.querySelectorAll("input");
+            inputs[1].value = out.camberPct.toFixed(1);
+            inputs[2].value = out.draftPct.toFixed(0);
+            inputs[4].value = out.entryDeg.toFixed(1);
+            inputs[5].value = out.exitDeg.toFixed(1);
+            statusEl.textContent = "Auto-filled a camber row from the draft stripe — set that row's Height, and check the numbers before saving.";
+          }
+        } else {
+          statusEl.textContent = out.status === "flagged"
+            ? "Found a stripe but it looks cut off by the photo edge — tap “Scan draft stripe” to check it or place points by hand."
+            : "No draft stripe found automatically — tap “Scan draft stripe” to place points by hand, or skip it.";
+        }
+      }
+    };
+    img.src = dataUrl;
   }
 
   document.getElementById("addPhotoInput").addEventListener("change", function (e) {
@@ -1652,6 +1693,7 @@ import {
     pendingMast = null;
     pendingMast2 = null;
     document.getElementById("addMastStatus").textContent = "Not set";
+    document.getElementById("draftAutoStatus").textContent = "Scanning the photo for a draft stripe…";
     var reader = new FileReader();
     reader.onload = function () {
       photoDataUrl = reader.result;
@@ -1659,6 +1701,7 @@ import {
       document.getElementById("addLeechBtn").disabled = false;
       document.getElementById("addDraftBtn").disabled = false;
       scanPhotoForData(photoDataUrl);
+      autoFillOnPhotoChoice(photoDataUrl);
     };
     reader.readAsDataURL(file);
   });
@@ -2174,6 +2217,7 @@ import {
       document.getElementById("addLeechBtn").disabled = true;
       pendingLeech = null;
       document.getElementById("addDraftBtn").disabled = true;
+      document.getElementById("draftAutoStatus").textContent = "Runs automatically once you choose a photo — check the numbers before saving.";
       setOcrStatus("");
       resetAddDialogChrome();
       document.getElementById("addScanDialog").classList.add("is-hidden");
@@ -2283,6 +2327,7 @@ import {
     document.getElementById("addLeechBtn").disabled = true;
     pendingLeech = null;
     document.getElementById("addDraftBtn").disabled = true;
+    document.getElementById("draftAutoStatus").textContent = "Runs automatically once you choose a photo — check the numbers before saving.";
     setOcrStatus("");
     resetAddDialogChrome();
     document.getElementById("addScanDialog").classList.remove("is-hidden");
