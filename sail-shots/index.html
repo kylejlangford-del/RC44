@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#07111d" />
   <title>Sail Shots · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20260923d" />
+  <link rel="stylesheet" href="../styles.css?v=20260923e" />
 </head>
 <body>
   <div class="bg-glow bg-glow--one"></div>
@@ -42,9 +42,9 @@
         </span>
       </div>
 
-      <section class="panel" style="margin-bottom:32px;">
+      <section class="panel" style="margin-bottom:20px;">
         <div class="section-kicker">Filter</div>
-        <div class="view-toggle" id="sailToggle" role="tablist" style="margin-bottom:18px;">
+        <div class="view-toggle" id="sailToggle" role="tablist" style="margin-bottom:14px;">
           <button class="view-toggle__btn is-active" type="button" data-sail="">All sails</button>
           <button class="view-toggle__btn" type="button" data-sail="Main">Main</button>
           <button class="view-toggle__btn" type="button" data-sail="G1">G1</button>
@@ -52,7 +52,7 @@
           <button class="view-toggle__btn" type="button" data-sail="J3">J3</button>
         </div>
         <div class="section-kicker">Date <span style="text-transform:none; font-weight:400; color:var(--muted);">— defaults to the most recent day; click to add more</span></div>
-        <div class="view-toggle" id="dateToggle" role="tablist" style="margin-bottom:18px; flex-wrap:wrap; row-gap:8px;"></div>
+        <div class="view-toggle" id="dateToggle" role="tablist" style="margin-bottom:14px; flex-wrap:wrap; row-gap:8px;"></div>
         <div class="filter-bar">
           <label class="field-inline"><span>Event</span><select id="fEvent"></select></label>
           <label class="field-inline"><span>Sail code</span><select id="fSailCode"></select></label>
@@ -63,7 +63,7 @@
           <label class="field-inline"><span>Rake</span><select id="fRake"></select></label>
           <button id="resetFiltersBtn" class="ghost-button" type="button">Reset</button>
         </div>
-        <div class="field-inline" style="margin-top:18px; max-width:420px;">
+        <div class="field-inline" style="margin-top:14px; max-width:420px;">
           <span>TWS range — <span id="fTwsLabel"></span></span>
           <div class="dual-slider">
             <input id="fTwsLo" type="range" min="0" max="30" step="0.5" value="0">
@@ -72,23 +72,23 @@
         </div>
       </section>
 
-      <section class="panel" style="margin-bottom:32px;">
+      <section class="panel" style="margin-bottom:20px;">
         <h2 style="margin-top:0;">Compare</h2>
 
         <div class="section-kicker">All scans</div>
         <p class="import-step__hint">Every scan matching the filters above, any boat — tap a thumbnail for a quick look, drag it into a box below to compare, or tap its pencil to edit. They drive the data, charts and overlay below.</p>
         <div id="catalog-all" class="thumb-grid thumb-grid--wide"></div>
 
-        <div id="compareDropGrid" class="compare-drop-grid compare-drop-grid--sm" style="margin-top:16px;"></div>
-        <div style="margin-top:10px;">
+        <div id="compareDropGrid" class="compare-drop-grid compare-drop-grid--sm" style="margin-top:14px;"></div>
+        <div style="margin-top:8px;">
           <button type="button" id="compareAddSlotBtn" class="text-link">+ Add another scan</button>
         </div>
-        <p class="import-step__hint" style="font-size:.72rem; margin-top:8px;">Drag any scans above into the boxes to compare them — two by default, add more with the link above.</p>
+        <p class="import-step__hint" style="font-size:.72rem; margin-top:6px;">Drag any scans above into the boxes to compare them — two by default, add more with the link above.</p>
 
-        <div id="compareData" style="margin-top:28px;"></div>
+        <div id="compareData" style="margin-top:20px;"></div>
       </section>
 
-      <section class="panel">
+      <section class="panel" style="margin-bottom:20px;">
         <h2 style="margin-top:0;">Camber, draft &amp; twist</h2>
         <p class="import-step__hint">From each selected scan's camber table, by height up the leech (25–87%). Dotted red line is the flying-shape target for that scan's wind speed and sail, interpolated between the 2kn target bins.</p>
         <div class="metric-chart-grid">
