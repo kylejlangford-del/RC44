@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#07111d" />
   <title>Sail Shots · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20260923h" />
+  <link rel="stylesheet" href="../styles.css?v=20260923i" />
 </head>
 <body>
   <div class="bg-glow bg-glow--one"></div>
@@ -163,6 +163,10 @@
           <button id="addMastBtn" class="ghost-button" type="button" disabled>Set mast alignment</button>
           <span style="font-size:.82rem; color:var(--muted);">Mast alignment: <strong id="addMastStatus">Not set</strong> (optional — needed for an accurate overlay)</span>
         </div>
+        <div style="display:flex; align-items:center; gap:14px; margin-bottom:12px; flex-wrap:wrap;">
+          <button id="addLeechBtn" class="ghost-button" type="button" disabled>Set leech line</button>
+          <span style="font-size:.82rem; color:var(--muted);">Leech line: <strong id="addLeechStatus">Not set</strong> (head to clew — needed for the camber-table overlay)</span>
+        </div>
         <div style="display:flex; align-items:center; gap:14px; margin-bottom:18px; flex-wrap:wrap;">
           <button id="addDraftBtn" class="ghost-button" type="button" disabled>Scan draft stripe</button>
           <span style="font-size:.82rem; color:var(--muted);">Finds the draft stripe in the photo and fills a camber-table row for you — check the numbers before saving.</span>
@@ -201,6 +205,22 @@
         <button id="calAxis2Btn" class="ghost-button" type="button" disabled>Add second axis</button>
         <button id="calClearBtn" class="ghost-button" type="button">Clear</button>
         <button id="calSaveBtn" class="ghost-button" type="button" disabled>Save alignment</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="leechDialog" class="dialog is-hidden">
+    <div class="dialog__backdrop"></div>
+    <div class="dialog__panel" style="width:min(760px,100%);">
+      <div class="dialog__head">
+        <h2>Leech line</h2>
+        <button id="leechClose" class="text-link" type="button">Close</button>
+      </div>
+      <p id="leechHint" class="import-step__hint" style="margin-bottom:12px;">Tap the head of the sail, then tap the clew.</p>
+      <div id="leechStage" class="cal-stage"></div>
+      <div style="display:flex; gap:14px; margin-top:16px; flex-wrap:wrap;">
+        <button id="leechClearBtn" class="ghost-button" type="button">Clear</button>
+        <button id="leechSaveBtn" class="ghost-button" type="button" disabled>Save leech line</button>
       </div>
     </div>
   </div>
@@ -250,6 +270,6 @@
   <script src="../main-battens/firebase-config.js?v=20260922e"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="./draftstripe.js?v=20260923a"></script>
-  <script type="module" src="./app.js?v=20260923j"></script>
+  <script type="module" src="./app.js?v=20260923k"></script>
 </body>
 </html>

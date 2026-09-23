@@ -678,7 +678,11 @@ import {
       (BOAT_LABEL[scan.boat] || scan.boat);
 
     var html = "<div class='scan-stage' style='margin-top:4px;'><img src='" + scan.file + "' alt='" + (BOAT_LABEL[scan.boat] || scan.boat) + " sail scan'></div>";
+    html += "<div style='display:flex; gap:14px; flex-wrap:wrap;'>";
     html += "<button type='button' id='scanPreviewCalBtn' class='text-link' style='margin-top:10px;'>Set / edit mast alignment</button>";
+    html += "<button type='button' id='scanPreviewLeechBtn' class='text-link' style='margin-top:10px;'>Set / edit leech line</button>";
+    html += "<button type='button' id='scanPreviewOverlayBtn' class='text-link' style='margin-top:10px;'>Show camber overlay</button>";
+    html += "</div>";
 
     html += "<table class='compare-table' style='margin-top:16px;'><tbody>" +
       FIELD_DEFS.map(function (f) { return "<tr><td>" + f.label + "</td><td>" + f.get(scan) + "</td></tr>"; }).join("") +
@@ -706,7 +710,114 @@ import {
       document.getElementById("scanPreviewDialog").classList.add("is-hidden");
       openMastCalibrator(scan.id);
     });
+    document.getElementById("scanPreviewLeechBtn").addEventListener("click", function () {
+      document.getElementById("scanPreviewDialog").classList.add("is-hidden");
+      openLeechDialog(scan.id);
+    });
+    var overlayOn = false;
+    document.getElementById("scanPreviewOverlayBtn").addEventListener("click", function () {
+      overlayOn = !overlayOn;
+      this.textContent = overlayOn ? "Hide camber overlay" : "Show camber overlay";
+      if (overlayOn) {
+        if (!scan.mast || !scan.leech) {
+          alert("Set both mast alignment and the leech line first — the overlay needs both to know where each height's chord runs.");
+          overlayOn = false;
+          this.textContent = "Show camber overlay";
+          return;
+        }
+        renderCamberOverlay(scan);
+      } else {
+        removeCamberOverlay();
+      }
+    });
     document.getElementById("scanPreviewDialog").classList.remove("is-hidden");
+  }
+
+  // ---------- Camber-table overlay ----------
+  // Draws the chord + camber curve implied by the numbers already sitting in the camber table
+  // back onto the scan photo, as a visual sanity check — the inverse of stripe detection: here
+  // the numbers are known and we're drawing where they say the draft should be.
+  function hermite(p0, m0, p1, m1, u) {
+    var u2 = u * u, u3 = u2 * u;
+    var h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
+    return h00 * p0 + h10 * m0 + h01 * p1 + h11 * m1;
+  }
+
+  function heightPointNat(axis, heightPct, natW, natH) {
+    // axis = { x1,y1 (top/head, 100%), x2,y2 (base/clew, 0%) } in xf/yf fractions.
+    var f = heightPct / 100;
+    return { x: (axis.x2 + (axis.x1 - axis.x2) * f) * natW, y: (axis.y2 + (axis.y1 - axis.y2) * f) * natH };
+  }
+
+  function buildCamberCurveNat(luffNat, leechNat, camberPct, draftPct, entryDeg, exitDeg) {
+    var cvx = leechNat.x - luffNat.x, cvy = leechNat.y - luffNat.y;
+    var chordLen = Math.sqrt(cvx * cvx + cvy * cvy);
+    if (chordLen < 1e-6) return null;
+    var px = -(cvy / chordLen), py = (cvx / chordLen); // perpendicular unit vector
+    var devFrac = Math.min(0.95, Math.max(0.05, (draftPct || 0) / 100));
+    var maxDevFrac = (camberPct || 0) / 100;
+    var slopeEntry = Math.tan((entryDeg || 0) * Math.PI / 180);
+    var slopeExit = Math.tan((exitDeg || 0) * Math.PI / 180);
+    var steps = 16, pts = [];
+    for (var i = 0; i <= steps; i++) {
+      var u = i / steps;
+      pts.push({ t: u * devFrac, d: hermite(0, slopeEntry * devFrac, maxDevFrac, 0, u) });
+    }
+    var l2 = 1 - devFrac;
+    for (var j = 1; j <= steps; j++) {
+      var u2 = j / steps;
+      pts.push({ t: devFrac + u2 * l2, d: hermite(maxDevFrac, 0, 0, slopeExit * l2, u2) });
+    }
+    return pts.map(function (p) {
+      return { x: luffNat.x + p.t * cvx + p.d * chordLen * px, y: luffNat.y + p.t * cvy + p.d * chordLen * py };
+    });
+  }
+
+  function removeCamberOverlay() {
+    var existing = document.querySelector("#scanPreviewBody .camber-overlay-svg");
+    if (existing) existing.remove();
+  }
+
+  function renderCamberOverlay(scan) {
+    removeCamberOverlay();
+    var stage = document.querySelector("#scanPreviewBody .scan-stage");
+    if (!stage) return;
+    var img = stage.querySelector("img");
+    if (!img || !scan.camber || !scan.camber.length) return;
+
+    function draw() {
+      var w = img.clientWidth, h = img.clientHeight, natW = img.naturalWidth, natH = img.naturalHeight;
+      if (!w || !h || !natW || !natH) return;
+      var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("class", "cal-svg camber-overlay-svg");
+      svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+      stage.appendChild(svg);
+      scan.camber.forEach(function (row) {
+        if (row.camber === null || row.camber === undefined || row.draft === null || row.draft === undefined) return;
+        var luffNat = heightPointNat(scan.mast, row.height, natW, natH);
+        var leechNat = heightPointNat(scan.leech, row.height, natW, natH);
+        var curveNat = buildCamberCurveNat(luffNat, leechNat, row.camber, row.draft, row.entry || 0, row.exit || 0);
+        if (!curveNat) return;
+        function toDisp(p) { return (p.x / natW * w) + "," + (p.y / natH * h); }
+        var chord = document.createElementNS(svg.namespaceURI, "line");
+        chord.setAttribute("x1", luffNat.x / natW * w); chord.setAttribute("y1", luffNat.y / natH * h);
+        chord.setAttribute("x2", leechNat.x / natW * w); chord.setAttribute("y2", leechNat.y / natH * h);
+        chord.setAttribute("class", "camber-overlay-chord");
+        svg.appendChild(chord);
+        var poly = document.createElementNS(svg.namespaceURI, "polyline");
+        poly.setAttribute("points", curveNat.map(toDisp).join(" "));
+        poly.setAttribute("class", "camber-overlay-curve");
+        svg.appendChild(poly);
+        var t = document.createElementNS(svg.namespaceURI, "text");
+        t.setAttribute("x", luffNat.x / natW * w - 6); t.setAttribute("y", luffNat.y / natH * h + 4);
+        t.setAttribute("class", "camber-overlay-label");
+        t.setAttribute("text-anchor", "end");
+        t.textContent = row.height + "%";
+        svg.appendChild(t);
+      });
+    }
+    if (img.complete && img.naturalWidth) draw();
+    else img.addEventListener("load", draw, { once: true });
   }
 
   function closeScanPreview() {
@@ -1463,6 +1574,7 @@ import {
   var photoFile = null;
   var pendingMast = null;
   var pendingMast2 = null;
+  var pendingLeech = null;
   var editingScanId = null; // set when the dialog is open in "edit an existing scan" mode
 
   function resetAddDialogChrome() {
@@ -1497,6 +1609,7 @@ import {
     photoFile = null;
     pendingMast = scan.mast || null;
     pendingMast2 = scan.mast2 || null;
+    pendingLeech = scan.leech || null;
 
     document.getElementById("addScanDialogTitle").textContent = "Edit scan";
     document.getElementById("addScanSubmitBtn").textContent = "Save changes";
@@ -1525,6 +1638,8 @@ import {
 
     document.getElementById("addMastStatus").textContent = scan.mast ? "Set" : "Not set";
     document.getElementById("addMastBtn").disabled = false;
+    document.getElementById("addLeechStatus").textContent = scan.leech ? "Set" : "Not set";
+    document.getElementById("addLeechBtn").disabled = false;
     document.getElementById("addDraftBtn").disabled = false;
     setOcrStatus("");
     document.getElementById("addScanDialog").classList.remove("is-hidden");
@@ -1541,6 +1656,7 @@ import {
     reader.onload = function () {
       photoDataUrl = reader.result;
       document.getElementById("addMastBtn").disabled = false;
+      document.getElementById("addLeechBtn").disabled = false;
       document.getElementById("addDraftBtn").disabled = false;
       scanPhotoForData(photoDataUrl);
     };
@@ -1652,6 +1768,136 @@ import {
       pendingMast2 = mast2;
       document.getElementById("addMastStatus").textContent = "Set";
     }, pendingMast, pendingMast2);
+  });
+
+  // ---------- Leech-line calibration (head-to-clew reference for the camber overlay) ----------
+  // Simple two-tap placement, no drag/loupe — same touch-safe pattern as the draft-stripe
+  // manual fallback, since this only needs to work once per photo, not be pixel-perfect.
+  var leech = { points: [], imgEl: null, svg: null, onSave: null, scanId: null };
+
+  function drawLeechPoints() {
+    var svg = leech.svg, img = leech.imgEl;
+    if (!svg || !img) return;
+    var w = img.clientWidth, h = img.clientHeight;
+    svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+    svg.innerHTML = "";
+    if (leech.points.length === 2) {
+      var line = document.createElementNS(svg.namespaceURI, "line");
+      line.setAttribute("x1", leech.points[0].xf * w); line.setAttribute("y1", leech.points[0].yf * h);
+      line.setAttribute("x2", leech.points[1].xf * w); line.setAttribute("y2", leech.points[1].yf * h);
+      line.setAttribute("class", "cal-line");
+      svg.appendChild(line);
+    }
+    var labels = ["Head", "Clew"];
+    leech.points.forEach(function (p, i) {
+      var c = document.createElementNS(svg.namespaceURI, "circle");
+      c.setAttribute("cx", p.xf * w); c.setAttribute("cy", p.yf * h);
+      c.setAttribute("r", 8);
+      c.setAttribute("class", "cal-point");
+      svg.appendChild(c);
+      var t = document.createElementNS(svg.namespaceURI, "text");
+      t.setAttribute("x", p.xf * w + 12); t.setAttribute("y", p.yf * h - 10);
+      t.setAttribute("class", "cal-label");
+      t.textContent = labels[i];
+      svg.appendChild(t);
+    });
+  }
+
+  function openLeechDialog(scanId, imageSrcOverride, onSaveOverride, existingOverride) {
+    var scan = scanId ? findScan(scanId) : null;
+    var src = imageSrcOverride || (scan ? scan.file : null);
+    if (!src) return;
+    leech.points = [];
+    leech.scanId = scanId;
+    leech.onSave = onSaveOverride || null;
+    var existing = scan ? scan.leech : (existingOverride || null);
+
+    var dlg = document.getElementById("leechDialog");
+    dlg.classList.remove("is-hidden");
+    var stage = document.getElementById("leechStage");
+    stage.innerHTML = "";
+    var img = document.createElement("img");
+    img.src = src;
+    img.className = "cal-image";
+    stage.appendChild(img);
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "cal-svg");
+    stage.appendChild(svg);
+    leech.imgEl = img;
+    leech.svg = svg;
+
+    document.getElementById("leechHint").textContent = "Tap the head of the sail, then tap the clew.";
+    document.getElementById("leechSaveBtn").disabled = true;
+
+    function ready() {
+      if (existing) {
+        leech.points = [{ xf: existing.x1, yf: existing.y1 }, { xf: existing.x2, yf: existing.y2 }];
+        drawLeechPoints();
+        document.getElementById("leechSaveBtn").disabled = false;
+        document.getElementById("leechHint").textContent = "Existing leech line shown — tap to redo (head, then clew), or Save.";
+      }
+    }
+    if (img.complete && img.naturalWidth) ready();
+    else img.addEventListener("load", ready, { once: true });
+
+    stage.onclick = function (e) {
+      var rect = img.getBoundingClientRect();
+      var xf = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+      var yf = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+      if (leech.points.length >= 2) leech.points = [];
+      leech.points.push({ xf: xf, yf: yf });
+      drawLeechPoints();
+      if (leech.points.length === 2) {
+        document.getElementById("leechHint").textContent = "Leech line set — tap again to redo, or Save.";
+        document.getElementById("leechSaveBtn").disabled = false;
+      } else {
+        document.getElementById("leechHint").textContent = "Now tap the clew (bottom aft corner).";
+        document.getElementById("leechSaveBtn").disabled = true;
+      }
+    };
+  }
+
+  document.getElementById("addLeechBtn").addEventListener("click", function () {
+    if (!photoDataUrl) return;
+    openLeechDialog(null, photoDataUrl, function (l) {
+      pendingLeech = l;
+      document.getElementById("addLeechStatus").textContent = "Set";
+    }, pendingLeech);
+  });
+  document.getElementById("leechClose").addEventListener("click", function () {
+    document.getElementById("leechDialog").classList.add("is-hidden");
+    document.getElementById("leechStage").onclick = null;
+    if (scanPreviewId) document.getElementById("scanPreviewDialog").classList.remove("is-hidden");
+  });
+  document.getElementById("leechClearBtn").addEventListener("click", function () {
+    leech.points = [];
+    drawLeechPoints();
+    document.getElementById("leechHint").textContent = "Tap the head of the sail, then tap the clew.";
+    document.getElementById("leechSaveBtn").disabled = true;
+  });
+  document.getElementById("leechSaveBtn").addEventListener("click", function () {
+    if (leech.points.length !== 2) return;
+    var l = { x1: leech.points[0].xf, y1: leech.points[0].yf, x2: leech.points[1].xf, y2: leech.points[1].yf };
+    if (leech.onSave) {
+      leech.onSave(l);
+    } else if (leech.scanId) {
+      var scan = findScan(leech.scanId);
+      if (scan) {
+        scan.leech = l;
+        if (scanPreviewId === scan.id) openScanPreview(scan.id);
+        if (liveMode) {
+          updateDoc(doc(db, COLLECTION, scan.id), { leech: l }).catch(function (e) {
+            console.error("Leech line save failed", e);
+            alert("Couldn't save the leech line — check your connection. (" + e.message + ")");
+          });
+        } else {
+          persistLocal();
+        }
+      }
+    }
+    document.getElementById("leechDialog").classList.add("is-hidden");
+    document.getElementById("leechStage").onclick = null;
+    if (scanPreviewId) document.getElementById("scanPreviewDialog").classList.remove("is-hidden");
   });
 
   // ---------- Draft-stripe scan dialog ----------
@@ -1907,6 +2153,7 @@ import {
         chockSize: document.getElementById("addChock").value.trim() || null
       },
       mast: pendingMast,
+      leech: pendingLeech,
       mast2: pendingMast2,
       camber: camber
     };
@@ -1923,6 +2170,9 @@ import {
       pendingMast2 = null;
       document.getElementById("addMastStatus").textContent = "Not set";
       document.getElementById("addMastBtn").disabled = true;
+      document.getElementById("addLeechStatus").textContent = "Not set";
+      document.getElementById("addLeechBtn").disabled = true;
+      pendingLeech = null;
       document.getElementById("addDraftBtn").disabled = true;
       setOcrStatus("");
       resetAddDialogChrome();
@@ -2029,6 +2279,9 @@ import {
     pendingMast2 = null;
     document.getElementById("addMastStatus").textContent = "Not set";
     document.getElementById("addMastBtn").disabled = true;
+    document.getElementById("addLeechStatus").textContent = "Not set";
+    document.getElementById("addLeechBtn").disabled = true;
+    pendingLeech = null;
     document.getElementById("addDraftBtn").disabled = true;
     setOcrStatus("");
     resetAddDialogChrome();

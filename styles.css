@@ -1349,6 +1349,24 @@ select:focus, input:focus, textarea:focus {
   font-size: 1.15rem;
 }
 
+/* ---------- Camber-table overlay (draws the chord + camber curve from the numbers already
+   in the table, back onto the scan photo, as a visual sanity check) ---------- */
+.camber-overlay-curve {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+.camber-overlay-chord {
+  stroke: rgba(71, 231, 219, .45);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+.camber-overlay-label {
+  fill: var(--accent);
+  font-size: 12px;
+  font-family: Inter, sans-serif;
+}
+
 /* ---------- Wind Calibrator v2: boat tabs, grid tables ---------- */
 
 .boat-tabs {
