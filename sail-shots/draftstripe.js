@@ -236,14 +236,42 @@
     return comps;
   }
 
+  // Median cross-sectional thickness of a component along its long (span) axis -- used to
+  // reject things that are LONG but not actually THIN, like sail-number lettering or a bold
+  // seam band, which a plain span*(1-fill) score doesn't reliably catch (a row of digits has
+  // plenty of empty space between/inside the glyphs, so its fill ratio can look almost as low
+  // as a real stripe's even though it's much thicker at any given point along its length).
+  function medianThickness(c, horizontal) {
+    var pts = c.pts, n = c.count;
+    var lo = horizontal ? c.minX : c.minY, hi = horizontal ? c.maxX : c.maxY;
+    var span = hi - lo + 1;
+    // Exact per-column (or per-row) pixel counts -- how many mask pixels sit at each single
+    // x position (for a mostly-horizontal component) -- not an aggregate over a wider window,
+    // which would conflate the stripe's own along-axis slope with its cross-axis thickness.
+    var counts = new Int32Array(span);
+    for (var i = 0; i < n; i++) {
+      var v = horizontal ? pts[i * 2] : pts[i * 2 + 1];
+      var idx = Math.min(span - 1, Math.max(0, v - lo));
+      counts[idx]++;
+    }
+    var nonZero = [];
+    for (var k = 0; k < span; k++) if (counts[k] > 0) nonZero.push(counts[k]);
+    if (!nonZero.length) return 0;
+    nonZero.sort(function (a, b) { return a - b; });
+    return nonZero[Math.floor(nonZero.length / 2)];
+  }
+
   function pickStripe(comps, w, h) {
     var diag = Math.sqrt(w * w + h * h);
     var minSpan = diag * 0.12;
+    var maxThick = Math.max(3, Math.round(diag * 0.012));
     var best = null, bestScore = -1;
     comps.forEach(function (c) {
       var bw = c.maxX - c.minX + 1, bh = c.maxY - c.minY + 1;
       var span = Math.max(bw, bh);
       if (span < minSpan) return;
+      var thick = medianThickness(c, bw >= bh);
+      if (thick > maxThick) return;
       var area = bw * bh;
       var fill = c.count / area;
       var score = span * (1 - Math.min(fill, 0.9));
