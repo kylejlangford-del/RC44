@@ -69,42 +69,10 @@
     return { w: w, h: h, data: data, scale: scale, naturalW: iw, naturalH: ih, roiX: srcX, roiY: srcY };
   }
 
-  // Rasterizes a hand-painted corridor (a polyline of natural-image points plus a half-width,
-  // both already converted into WORKING-canvas coordinates by the caller) into a 0/1 mask the
-  // same size as the working canvas. Sampling finely along each segment and stamping a small
-  // filled square at each sample is cheap and avoids any per-pixel distance-to-polyline math.
-  function rasterizeCorridor(pointsWork, radiusWork, w, h) {
-    var mask = new Uint8Array(w * h);
-    if (!pointsWork || pointsWork.length === 0) return mask;
-    var r = Math.max(1, Math.round(radiusWork));
-    function stamp(cx, cy) {
-      var x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(w - 1, Math.ceil(cx + r));
-      var y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(h - 1, Math.ceil(cy + r));
-      var r2 = r * r;
-      for (var y = y0; y <= y1; y++) {
-        var dy = y - cy;
-        var row = y * w;
-        for (var x = x0; x <= x1; x++) {
-          var dx = x - cx;
-          if (dx * dx + dy * dy <= r2) mask[row + x] = 1;
-        }
-      }
-    }
-    if (pointsWork.length === 1) { stamp(pointsWork[0].x, pointsWork[0].y); return mask; }
-    for (var i = 0; i < pointsWork.length - 1; i++) {
-      var a = pointsWork[i], b = pointsWork[i + 1];
-      var dx = b.x - a.x, dy = b.y - a.y;
-      var dist = Math.sqrt(dx * dx + dy * dy);
-      var steps = Math.max(1, Math.ceil(dist / Math.max(1, r * 0.5)));
-      for (var s = 0; s <= steps; s++) {
-        var t = s / steps;
-        stamp(a.x + dx * t, a.y + dy * t);
-      }
-    }
-    return mask;
-  }
-
-  function computeMask(work) {
+  // Raw LAB 'a' (red/magenta-ness) field plus its mean/std -- the continuous signal a coloured
+  // stripe stands out in, before any thresholding. Shared by the whole-photo blob detector and
+  // the paint-guided ridge follower below.
+  function computeAField(work) {
     var w = work.w, h = work.h, data = work.data;
     var n = w * h;
     var aCh = new Float32Array(n);
@@ -118,8 +86,14 @@
     var mean = sum / n;
     var sq = 0;
     for (var j = 0; j < n; j++) { var d = aCh[j] - mean; sq += d * d; }
-    var std = Math.sqrt(sq / n);
-    var threshold = Math.max(mean + 1.3 * std, mean + 9);
+    var std = Math.sqrt(sq / n) || 1;
+    return { field: aCh, mean: mean, std: std };
+  }
+
+  function computeMask(work) {
+    var f = computeAField(work);
+    var aCh = f.field, n = aCh.length;
+    var threshold = Math.max(f.mean + 1.3 * f.std, f.mean + 9);
     var mask = new Uint8Array(n);
     for (var k = 0; k < n; k++) mask[k] = aCh[k] > threshold ? 1 : 0;
     return mask;
@@ -159,7 +133,10 @@
   // dark laminate sails, as opposed to a red/coloured stripe). Instead of a colour channel,
   // this looks for thin ridges that are brighter than their own local surroundings -- a cheap
   // JS stand-in for a white top-hat filter, validated against real dark-sail photos.
-  function computeMaskLight(work) {
+  // Raw local-contrast residual field (a pale ridge's continuous signal) plus the sail-cloth
+  // mask and residual mean/std it was judged against. Shared by the whole-photo blob detector
+  // and the paint-guided ridge follower below.
+  function computeLightField(work) {
     var w = work.w, h = work.h, data = work.data;
     var n = w * h;
     var lum = new Float32Array(n);
@@ -201,9 +178,14 @@
       if (!sailMask[mm]) continue;
       var dr = residual[mm] - residMean; sqR += dr * dr;
     }
-    var residStd = residCount ? Math.sqrt(sqR / residCount) : 1;
-    var rThresh = Math.max(residMean + 2.2 * residStd, residMean + 5);
+    var residStd = (residCount ? Math.sqrt(sqR / residCount) : 1) || 1;
+    return { field: residual, sailMask: sailMask, mean: residMean, std: residStd };
+  }
 
+  function computeMaskLight(work) {
+    var f = computeLightField(work);
+    var residual = f.field, sailMask = f.sailMask, n = residual.length;
+    var rThresh = Math.max(f.mean + 2.2 * f.std, f.mean + 5);
     var mask = new Uint8Array(n);
     for (var p = 0; p < n; p++) mask[p] = (sailMask[p] && residual[p] > rThresh) ? 1 : 0;
     return mask;
@@ -417,6 +399,145 @@
   // Runs one mask-building pass through the shared close/open + connected-components +
   // scoring pipeline. `closeMul` widens the closing step for modes whose stripe tends to be
   // dashed/broken (the light-stripe mode) so nearby fragments bridge into one component.
+  // Resample a rough hand-drawn polyline into evenly spaced points along its length, with a
+  // light moving-average smoothing pass first (finger/mouse drags are jittery; the tangent
+  // estimate below needs a stable direction, not every wobble).
+  function resamplePolyline(points, spacing) {
+    if (points.length < 2) return points.slice();
+    var smoothed = points.map(function (p, i) {
+      var lo = Math.max(0, i - 2), hi = Math.min(points.length - 1, i + 2);
+      var sx = 0, sy = 0, c = 0;
+      for (var k = lo; k <= hi; k++) { sx += points[k].x; sy += points[k].y; c++; }
+      return { x: sx / c, y: sy / c };
+    });
+    var cum = [0];
+    for (var i = 1; i < smoothed.length; i++) {
+      var dx = smoothed[i].x - smoothed[i - 1].x, dy = smoothed[i].y - smoothed[i - 1].y;
+      cum.push(cum[i - 1] + Math.sqrt(dx * dx + dy * dy));
+    }
+    var total = cum[cum.length - 1];
+    if (total < 1e-6) return [smoothed[0]];
+    var count = Math.max(4, Math.round(total / spacing) + 1);
+    var out = [];
+    var seg = 0;
+    for (var s = 0; s < count; s++) {
+      var target = (s / (count - 1)) * total;
+      while (seg < cum.length - 2 && cum[seg + 1] < target) seg++;
+      var segLen = cum[seg + 1] - cum[seg];
+      var t = segLen > 1e-6 ? (target - cum[seg]) / segLen : 0;
+      out.push({
+        x: smoothed[seg].x + (smoothed[seg + 1].x - smoothed[seg].x) * t,
+        y: smoothed[seg].y + (smoothed[seg + 1].y - smoothed[seg].y) * t
+      });
+    }
+    return out;
+  }
+
+  // Per-sample normal (perpendicular to the local tangent, from neighbouring samples).
+  function computeNormals(pts) {
+    var n = pts.length;
+    var normals = [];
+    for (var i = 0; i < n; i++) {
+      var a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
+      var dx = b.x - a.x, dy = b.y - a.y;
+      var len = Math.sqrt(dx * dx + dy * dy) || 1;
+      normals.push({ x: -dy / len, y: dx / len });
+    }
+    return normals;
+  }
+
+  function sampleBilinear(field, w, h, x, y) {
+    if (x < 0 || y < 0 || x > w - 1 || y > h - 1) return -50; // strongly discourage leaving the photo
+    var x0 = Math.floor(x), y0 = Math.floor(y);
+    var x1 = Math.min(w - 1, x0 + 1), y1 = Math.min(h - 1, y0 + 1);
+    var fx = x - x0, fy = y - y0;
+    var v00 = field[y0 * w + x0], v10 = field[y0 * w + x1], v01 = field[y1 * w + x0], v11 = field[y1 * w + x1];
+    return v00 * (1 - fx) * (1 - fy) + v10 * fx * (1 - fy) + v01 * (1 - fx) * fy + v11 * fx * fy;
+  }
+
+  // The core of "paint the stripe": instead of thresholding the whole corridor and picking the
+  // best blob (which a sail-number stencil can win locally), walk perpendicular slices along
+  // the sailor's rough path and find the single best-scoring ridge through them via dynamic
+  // programming -- classic "snake"/livewire-style contour fitting. A quadratic penalty on how
+  // far the offset moves between adjacent slices means a strong but ISOLATED distractor (a
+  // letter's edge sitting just off the true line for a few slices) rarely wins, because jumping
+  // to it and back costs more than just coasting straight through on the smoothness prior alone
+  // -- which is exactly the behaviour we want under a sail number the real stripe runs beneath.
+  function followPaintedRidge(work, pointsWork, radiusWork) {
+    var w = work.w, h = work.h;
+    if (pointsWork.length < 2) return null;
+
+    var aF = computeAField(work);
+    var lF = computeLightField(work);
+    var n = w * h;
+    var combined = new Float32Array(n);
+    for (var i = 0; i < n; i++) {
+      var za = (aF.field[i] - aF.mean) / aF.std;
+      var zl = (lF.field[i] - lF.mean) / lF.std;
+      combined[i] = Math.max(za, zl);
+    }
+
+    var spacing = Math.max(2, radiusWork * 0.35);
+    var center = resamplePolyline(pointsWork, spacing);
+    if (center.length < 4) return null;
+    var normals = computeNormals(center);
+
+    var R = Math.max(4, Math.round(radiusWork * 0.9));
+    var states = 2 * R + 1;
+    var M = center.length;
+
+    var cost = new Float32Array(M * states);
+    for (var t = 0; t < M; t++) {
+      var c = center[t], nrm = normals[t];
+      for (var oi = 0; oi < states; oi++) {
+        var o = oi - R;
+        var s = sampleBilinear(combined, w, h, c.x + nrm.x * o, c.y + nrm.y * o);
+        cost[t * states + oi] = -s;
+      }
+    }
+
+    // Quadratic smoothness penalty between consecutive slices' offsets, searched within a
+    // bounded window (an offset rarely needs to jump far between adjacent, closely-spaced
+    // slices, and bounding this keeps the DP fast at any brush radius).
+    var lambda = 0.05;
+    var win = Math.max(6, Math.round(R * 0.25));
+    var dp = new Float32Array(M * states);
+    var back = new Int16Array(M * states);
+    for (var oi0 = 0; oi0 < states; oi0++) dp[oi0] = cost[oi0];
+    for (var t2 = 1; t2 < M; t2++) {
+      for (var oi2 = 0; oi2 < states; oi2++) {
+        var best = Infinity, bestPrev = oi2;
+        var lo = Math.max(0, oi2 - win), hi = Math.min(states - 1, oi2 + win);
+        for (var pOi = lo; pOi <= hi; pOi++) {
+          var diff = oi2 - pOi;
+          var val = dp[(t2 - 1) * states + pOi] + lambda * diff * diff;
+          if (val < best) { best = val; bestPrev = pOi; }
+        }
+        dp[t2 * states + oi2] = best + cost[t2 * states + oi2];
+        back[t2 * states + oi2] = bestPrev;
+      }
+    }
+
+    var bestFinal = 0, bestVal = Infinity;
+    for (var oiF = 0; oiF < states; oiF++) {
+      var v = dp[(M - 1) * states + oiF];
+      if (v < bestVal) { bestVal = v; bestFinal = oiF; }
+    }
+    var offsets = new Int16Array(M);
+    offsets[M - 1] = bestFinal;
+    for (var t3 = M - 1; t3 > 0; t3--) offsets[t3 - 1] = back[t3 * states + offsets[t3]];
+
+    var curve = [];
+    var scoreSum = 0;
+    for (var t4 = 0; t4 < M; t4++) {
+      var o4 = offsets[t4] - R;
+      var c4 = center[t4], nrm4 = normals[t4];
+      curve.push({ x: c4.x + nrm4.x * o4, y: c4.y + nrm4.y * o4 });
+      scoreSum += -cost[t4 * states + offsets[t4]];
+    }
+    return { curve: curve, avgScore: scoreSum / M };
+  }
+
   function detectFromMask(mask, w, h, closeMul, paintMask, minSpanFrac) {
     if (paintMask) {
       var restricted = new Uint8Array(w * h);
@@ -461,23 +582,47 @@
     var work = buildWorkingCanvas(imgEl, hasStroke ? 1100 : 900, cropNat);
     if (!work) return { status: "none", reason: "Couldn't read this photo's pixels (cross-origin image)." };
 
-    var paintMask = null;
+    var scale = 1 / work.scale;
+    function toNat(p) { return { x: work.roiX + p.x * scale, y: work.roiY + p.y * scale }; }
+
     if (hasStroke) {
       var pointsWork = paintStroke.points.map(function (p) {
         return { x: (p.x - work.roiX) * work.scale, y: (p.y - work.roiY) * work.scale };
       });
       var radiusWork = (paintStroke.radius || 40) * work.scale;
-      paintMask = rasterizeCorridor(pointsWork, radiusWork, work.w, work.h);
-    }
-    // A painted corridor is already a strong, sailor-supplied location prior, so allow a
-    // shorter run than the default whole-photo requirement (12% of the crop's own diagonal).
-    var minSpanFrac = hasStroke ? 0.04 : 0.12;
 
-    // Try two independent detectors and keep whichever finds the more convincing stripe:
-    // a coloured (red-ish) stripe via LAB 'a', and a pale stripe on dark cloth via local
-    // brightness contrast. Most dark-hulled/dark-laminate sails use the latter.
-    var redBest = detectFromMask(computeMask(work), work.w, work.h, 1, paintMask, minSpanFrac);
-    var lightBest = detectFromMask(computeMaskLight(work), work.w, work.h, 2.2, paintMask, minSpanFrac);
+      // Follow the actual ridge under the sailor's stroke rather than thresholding the whole
+      // corridor and picking the best blob -- robust to a letter or seam crossing part of the
+      // path, since the DP's smoothness prior carries the trace through a short bad stretch.
+      var ridge = followPaintedRidge(work, pointsWork, radiusWork);
+      if (!ridge || ridge.curve.length < 4) {
+        return { status: "none", reason: "Couldn't find a clear stripe along that painted path — try tracing more closely along the stripe, or place points by hand." };
+      }
+      var rMath = chordMath(ridge.curve);
+      if (!rMath) return { status: "none", reason: "Couldn't find a clear draft stripe in this photo." };
+
+      // A low average score means long stretches were carried by the smoothness prior alone,
+      // not real contrast -- likely crossing a sail number, a seam, or just a faint patch.
+      var weak = ridge.avgScore < 1.0;
+      return {
+        status: weak ? "flagged" : "ok",
+        reason: weak ? "Part of the painted path had weak contrast (maybe crossing lettering or a seam) — check the trace closely before trusting it, or place points by hand." : "",
+        mode: "paint",
+        curve: ridge.curve.map(toNat),
+        chordA: toNat(rMath.chordA),
+        chordB: toNat(rMath.chordB),
+        camberPct: rMath.camberPct,
+        draftPct: rMath.draftPct,
+        entryDeg: rMath.entryDeg,
+        exitDeg: rMath.exitDeg
+      };
+    }
+
+    // Whole-photo scan (no painted hint): try two independent blob detectors and keep
+    // whichever finds the more convincing stripe -- a coloured (red-ish) stripe via LAB 'a',
+    // and a pale stripe on dark cloth via local brightness contrast.
+    var redBest = detectFromMask(computeMask(work), work.w, work.h, 1);
+    var lightBest = detectFromMask(computeMaskLight(work), work.w, work.h, 2.2);
 
     var best = null, mode = null;
     if (redBest && lightBest) {
@@ -486,14 +631,7 @@
     } else if (redBest) { best = redBest; mode = "colour"; }
     else if (lightBest) { best = lightBest; mode = "light"; }
 
-    if (!best) {
-      return {
-        status: "none",
-        reason: hasStroke
-          ? "Couldn't find a clear stripe along that painted path — try tracing more closely along the stripe, or place points by hand."
-          : "Couldn't find a clear draft stripe in this photo."
-      };
-    }
+    if (!best) return { status: "none", reason: "Couldn't find a clear draft stripe in this photo." };
 
     var curve = extractCurve(best);
     if (curve.length < 10) {
@@ -503,8 +641,6 @@
     var math = chordMath(curve);
     if (!math) return { status: "none", reason: "Couldn't find a clear draft stripe in this photo." };
 
-    var scale = 1 / work.scale;
-    function toNat(p) { return { x: work.roiX + p.x * scale, y: work.roiY + p.y * scale }; }
     var curveNat = curve.map(toNat);
     var chordANat = toNat(math.chordA), chordBNat = toNat(math.chordB);
 
