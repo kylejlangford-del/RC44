@@ -1322,6 +1322,15 @@ select:focus, input:focus, textarea:focus {
   stroke-width: 2;
 }
 .draft-endpoint--manual { fill: var(--stiff); cursor: grab; }
+/* Live feedback while the sailor drags a finger/mouse along the stripe -- a thick, translucent
+   corridor so it's clear how wide an area will be searched, drawn under the results overlay. */
+.draft-paint-stroke {
+  fill: none;
+  stroke: rgba(255, 207, 92, .45);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#draftStage.is-painting { cursor: crosshair; touch-action: none; }
 .draft-results {
   margin-top: 14px;
   padding: 14px 16px;

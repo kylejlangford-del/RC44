@@ -33,23 +33,75 @@
     return a;
   }
 
-  function buildWorkingCanvas(imgEl, maxDim) {
+  // `cropNat` (optional) restricts the working canvas to a sub-region of the original image,
+  // given in natural (full-photo) pixel coordinates: { x0, y0, x1, y1 }. Used by the paint-a-
+  // corridor flow so detection only ever looks at the area the sailor dragged over, and can
+  // upscale that small region for more effective resolution (a `maxDim` of e.g. 900 downscales
+  // a full photo, but is often an UPSCALE for a tight crop, which helps rather than hurts).
+  function buildWorkingCanvas(imgEl, maxDim, cropNat) {
     var iw = imgEl.naturalWidth, ih = imgEl.naturalHeight;
     if (!iw || !ih) return null;
-    var scale = Math.min(1, maxDim / Math.max(iw, ih));
-    var w = Math.max(1, Math.round(iw * scale));
-    var h = Math.max(1, Math.round(ih * scale));
+    var srcX = 0, srcY = 0, srcW = iw, srcH = ih;
+    if (cropNat) {
+      srcX = Math.max(0, Math.min(iw - 1, Math.round(cropNat.x0)));
+      srcY = Math.max(0, Math.min(ih - 1, Math.round(cropNat.y0)));
+      srcW = Math.max(1, Math.min(iw - srcX, Math.round(cropNat.x1 - cropNat.x0)));
+      srcH = Math.max(1, Math.min(ih - srcY, Math.round(cropNat.y1 - cropNat.y0)));
+    }
+    var scaleCap = cropNat ? 3 : 1; // allow upscaling a small painted crop, never a full photo
+    var scale = Math.min(scaleCap, maxDim / Math.max(srcW, srcH));
+    var w = Math.max(1, Math.round(srcW * scale));
+    var h = Math.max(1, Math.round(srcH * scale));
     var canvas = document.createElement("canvas");
     canvas.width = w; canvas.height = h;
     var ctx = canvas.getContext("2d");
-    ctx.drawImage(imgEl, 0, 0, w, h);
+    try {
+      ctx.drawImage(imgEl, srcX, srcY, srcW, srcH, 0, 0, w, h);
+    } catch (err) {
+      return null;
+    }
     var data;
     try {
       data = ctx.getImageData(0, 0, w, h).data;
     } catch (err) {
       return null; // cross-origin, can't inspect pixels
     }
-    return { w: w, h: h, data: data, scale: scale, naturalW: iw, naturalH: ih };
+    return { w: w, h: h, data: data, scale: scale, naturalW: iw, naturalH: ih, roiX: srcX, roiY: srcY };
+  }
+
+  // Rasterizes a hand-painted corridor (a polyline of natural-image points plus a half-width,
+  // both already converted into WORKING-canvas coordinates by the caller) into a 0/1 mask the
+  // same size as the working canvas. Sampling finely along each segment and stamping a small
+  // filled square at each sample is cheap and avoids any per-pixel distance-to-polyline math.
+  function rasterizeCorridor(pointsWork, radiusWork, w, h) {
+    var mask = new Uint8Array(w * h);
+    if (!pointsWork || pointsWork.length === 0) return mask;
+    var r = Math.max(1, Math.round(radiusWork));
+    function stamp(cx, cy) {
+      var x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(w - 1, Math.ceil(cx + r));
+      var y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(h - 1, Math.ceil(cy + r));
+      var r2 = r * r;
+      for (var y = y0; y <= y1; y++) {
+        var dy = y - cy;
+        var row = y * w;
+        for (var x = x0; x <= x1; x++) {
+          var dx = x - cx;
+          if (dx * dx + dy * dy <= r2) mask[row + x] = 1;
+        }
+      }
+    }
+    if (pointsWork.length === 1) { stamp(pointsWork[0].x, pointsWork[0].y); return mask; }
+    for (var i = 0; i < pointsWork.length - 1; i++) {
+      var a = pointsWork[i], b = pointsWork[i + 1];
+      var dx = b.x - a.x, dy = b.y - a.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      var steps = Math.max(1, Math.ceil(dist / Math.max(1, r * 0.5)));
+      for (var s = 0; s <= steps; s++) {
+        var t = s / steps;
+        stamp(a.x + dx * t, a.y + dy * t);
+      }
+    }
+    return mask;
   }
 
   function computeMask(work) {
@@ -261,9 +313,9 @@
     return nonZero[Math.floor(nonZero.length / 2)];
   }
 
-  function pickStripe(comps, w, h) {
+  function pickStripe(comps, w, h, minSpanFrac) {
     var diag = Math.sqrt(w * w + h * h);
-    var minSpan = diag * 0.12;
+    var minSpan = diag * (minSpanFrac || 0.12);
     var maxThick = Math.max(3, Math.round(diag * 0.012));
     var best = null, bestScore = -1;
     comps.forEach(function (c) {
@@ -365,7 +417,12 @@
   // Runs one mask-building pass through the shared close/open + connected-components +
   // scoring pipeline. `closeMul` widens the closing step for modes whose stripe tends to be
   // dashed/broken (the light-stripe mode) so nearby fragments bridge into one component.
-  function detectFromMask(mask, w, h, closeMul) {
+  function detectFromMask(mask, w, h, closeMul, paintMask, minSpanFrac) {
+    if (paintMask) {
+      var restricted = new Uint8Array(w * h);
+      for (var pm = 0; pm < mask.length; pm++) restricted[pm] = (mask[pm] && paintMask[pm]) ? 1 : 0;
+      mask = restricted;
+    }
     var closeR = Math.max(3, Math.round(Math.min(w, h) * 0.018 * (closeMul || 1)));
     mask = dilate(mask, w, h, closeR);
     mask = erode(mask, w, h, closeR);
@@ -378,18 +435,49 @@
     mask = erode(mask, w, h, openR);
     mask = dilate(mask, w, h, openR);
     var comps = connectedComponents(mask, w, h);
-    return pickStripe(comps, w, h);
+    return pickStripe(comps, w, h, minSpanFrac);
   }
 
-  function analyze(imgEl) {
-    var work = buildWorkingCanvas(imgEl, 900);
+  // `paintStroke` (optional): { points: [{x,y}, ...], radius } all in the ORIGINAL image's
+  // natural pixel space -- a hand-dragged corridor the sailor painted roughly along the stripe.
+  // When given, detection crops to (and upscales) just that corridor's bounding box and only
+  // ever considers pixels within `radius` of the painted path, so a sail-number stencil or a
+  // seam elsewhere in the photo can no longer be mistaken for the stripe -- it's simply outside
+  // the corridor. Without it, the whole photo is scanned as before.
+  function analyze(imgEl, paintStroke) {
+    var hasStroke = paintStroke && paintStroke.points && paintStroke.points.length > 0;
+    var cropNat = null;
+    if (hasStroke) {
+      var r = paintStroke.radius || 40;
+      var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      paintStroke.points.forEach(function (p) {
+        if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
+        if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
+      });
+      var pad = r * 1.6;
+      cropNat = { x0: x0 - pad, y0: y0 - pad, x1: x1 + pad, y1: y1 + pad };
+    }
+
+    var work = buildWorkingCanvas(imgEl, hasStroke ? 1100 : 900, cropNat);
     if (!work) return { status: "none", reason: "Couldn't read this photo's pixels (cross-origin image)." };
+
+    var paintMask = null;
+    if (hasStroke) {
+      var pointsWork = paintStroke.points.map(function (p) {
+        return { x: (p.x - work.roiX) * work.scale, y: (p.y - work.roiY) * work.scale };
+      });
+      var radiusWork = (paintStroke.radius || 40) * work.scale;
+      paintMask = rasterizeCorridor(pointsWork, radiusWork, work.w, work.h);
+    }
+    // A painted corridor is already a strong, sailor-supplied location prior, so allow a
+    // shorter run than the default whole-photo requirement (12% of the crop's own diagonal).
+    var minSpanFrac = hasStroke ? 0.04 : 0.12;
 
     // Try two independent detectors and keep whichever finds the more convincing stripe:
     // a coloured (red-ish) stripe via LAB 'a', and a pale stripe on dark cloth via local
     // brightness contrast. Most dark-hulled/dark-laminate sails use the latter.
-    var redBest = detectFromMask(computeMask(work), work.w, work.h, 1);
-    var lightBest = detectFromMask(computeMaskLight(work), work.w, work.h, 2.2);
+    var redBest = detectFromMask(computeMask(work), work.w, work.h, 1, paintMask, minSpanFrac);
+    var lightBest = detectFromMask(computeMaskLight(work), work.w, work.h, 2.2, paintMask, minSpanFrac);
 
     var best = null, mode = null;
     if (redBest && lightBest) {
@@ -398,7 +486,14 @@
     } else if (redBest) { best = redBest; mode = "colour"; }
     else if (lightBest) { best = lightBest; mode = "light"; }
 
-    if (!best) return { status: "none", reason: "Couldn't find a clear draft stripe in this photo." };
+    if (!best) {
+      return {
+        status: "none",
+        reason: hasStroke
+          ? "Couldn't find a clear stripe along that painted path — try tracing more closely along the stripe, or place points by hand."
+          : "Couldn't find a clear draft stripe in this photo."
+      };
+    }
 
     var curve = extractCurve(best);
     if (curve.length < 10) {
@@ -409,7 +504,7 @@
     if (!math) return { status: "none", reason: "Couldn't find a clear draft stripe in this photo." };
 
     var scale = 1 / work.scale;
-    function toNat(p) { return { x: p.x * scale, y: p.y * scale }; }
+    function toNat(p) { return { x: work.roiX + p.x * scale, y: work.roiY + p.y * scale }; }
     var curveNat = curve.map(toNat);
     var chordANat = toNat(math.chordA), chordBNat = toNat(math.chordB);
 

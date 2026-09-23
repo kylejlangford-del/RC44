@@ -2006,7 +2006,7 @@ import {
   // own endpoints. If that's flagged unreliable (or nothing was found), the sailor can tap the
   // two chord ends by hand instead — the detected curve shape (when there is one) is kept and
   // just re-measured against the new chord, so a bad photo edge doesn't need a full re-detect.
-  var draft = { curveNat: null, chordANat: null, chordBNat: null, natW: 0, natH: 0, manualMode: false, manualPts: [], imgEl: null, svg: null, result: null };
+  var draft = { curveNat: null, chordANat: null, chordBNat: null, natW: 0, natH: 0, manualMode: false, manualPts: [], imgEl: null, svg: null, result: null, paintMode: false, paintPts: [], painting: false };
 
   function draftToXf(p) { return { xf: p.x / draft.natW, yf: p.y / draft.natH }; }
 
@@ -2033,6 +2033,18 @@ import {
     if (!w || !h) return;
     svg.setAttribute("viewBox", "0 0 " + w + " " + h);
     svg.innerHTML = "";
+    if (draft.paintPts.length > 1) {
+      var radiusPx = draftPaintRadiusNat() * (w / draft.natW);
+      var pPts = draft.paintPts.map(function (p) {
+        var f = draftToXf(p);
+        return (f.xf * w) + "," + (f.yf * h);
+      }).join(" ");
+      var pLine = document.createElementNS(svg.namespaceURI, "polyline");
+      pLine.setAttribute("points", pPts);
+      pLine.setAttribute("class", "draft-paint-stroke");
+      pLine.setAttribute("stroke-width", Math.max(2, radiusPx * 2));
+      svg.appendChild(pLine);
+    }
     if (draft.curveNat && draft.curveNat.length > 1) {
       var pts = draft.curveNat.map(function (p) {
         var f = draftToXf(p);
@@ -2096,17 +2108,18 @@ import {
     document.getElementById("draftFillBtn").disabled = false;
   }
 
-  function draftRunDetection() {
-    if (!draft.imgEl) return;
-    draft.manualMode = false;
-    draft.manualPts = [];
-    draft.natW = draft.imgEl.naturalWidth;
-    draft.natH = draft.imgEl.naturalHeight;
-    var out = DraftStripe.analyze(draft.imgEl);
+  // Brush half-width for the paint-the-stripe corridor, as a fraction of the photo's shorter
+  // natural dimension -- wide enough to tolerate an imprecise finger-drag, narrow enough to
+  // still exclude a boom seam or lettering sitting well clear of the actual stripe.
+  function draftPaintRadiusNat() {
+    return Math.max(20, Math.round(0.03 * Math.min(draft.natW, draft.natH)));
+  }
+
+  function draftApplyResult(out, fallbackNote) {
     var hintEl = document.getElementById("draftHint");
     if (out.status === "none") {
       draft.curveNat = null; draft.chordANat = null; draft.chordBNat = null;
-      hintEl.textContent = out.reason + " Tap “Place chord points by hand” to mark the stripe yourself.";
+      hintEl.textContent = out.reason + " " + fallbackNote;
       draftDrawOverlay();
       draftShowResult();
       return;
@@ -2116,9 +2129,28 @@ import {
     draft.chordBNat = out.chordB;
     hintEl.textContent = out.status === "flagged"
       ? out.reason
-      : "Auto-detected — check it lines up with the stripe, or place points by hand to override the ends.";
+      : "Detected — check it lines up with the stripe, or place points by hand to override the ends.";
     draftDrawOverlay();
     draftShowResult();
+  }
+
+  function draftRunDetection() {
+    if (!draft.imgEl) return;
+    draft.manualMode = false;
+    draft.manualPts = [];
+    draft.paintMode = false;
+    draft.paintPts = [];
+    document.getElementById("draftStage").classList.remove("is-painting");
+    draft.natW = draft.imgEl.naturalWidth;
+    draft.natH = draft.imgEl.naturalHeight;
+    var out = DraftStripe.analyze(draft.imgEl);
+    draftApplyResult(out, "Tap “Paint the stripe” to trace it yourself, or “Place chord points by hand”.");
+  }
+
+  function draftRunPaintDetection() {
+    if (!draft.imgEl || draft.paintPts.length < 2) return;
+    var out = DraftStripe.analyze(draft.imgEl, { points: draft.paintPts, radius: draftPaintRadiusNat() });
+    draftApplyResult(out, "Try painting again, closer along the stripe, or place points by hand.");
   }
 
   function openDraftDialog(src) {
@@ -2137,9 +2169,13 @@ import {
     draft.svg = svg;
     draft.manualMode = false;
     draft.manualPts = [];
+    draft.paintMode = false;
+    draft.paintPts = [];
+    draft.painting = false;
     draft.curveNat = null;
     draft.chordANat = null;
     draft.chordBNat = null;
+    stage.classList.remove("is-painting");
     draftPopulateRowSelect();
     document.getElementById("draftHint").textContent = "Scanning the photo for a draft stripe…";
     document.getElementById("draftResults").classList.add("is-hidden");
@@ -2149,14 +2185,18 @@ import {
     if (img.complete && img.naturalWidth) ready();
     else img.addEventListener("load", ready, { once: true });
 
+    function clientToNat(e) {
+      var rect = img.getBoundingClientRect();
+      var xf = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+      var yf = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+      return { x: xf * draft.natW, y: yf * draft.natH };
+    }
+
     // Tap-to-place, mirroring the mast-calibration stage's click handling (which already works
     // reliably on iPhone Safari via its synthesized click-from-tap) — no dragging needed here.
     stage.onclick = function (e) {
       if (!draft.manualMode) return;
-      var rect = img.getBoundingClientRect();
-      var xf = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-      var yf = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
-      var p = { x: xf * draft.natW, y: yf * draft.natH };
+      var p = clientToNat(e);
       if (draft.manualPts.length >= 2) draft.manualPts = [];
       draft.manualPts.push(p);
       if (draft.manualPts.length === 2) {
@@ -2173,6 +2213,40 @@ import {
       }
       draftDrawOverlay();
     };
+
+    // Drag-to-paint: a thick corridor traced along the stripe, restricting auto-detect to just
+    // that area so a boom seam or lettering elsewhere in frame can't be mistaken for it.
+    stage.onpointerdown = function (e) {
+      if (!draft.paintMode) return;
+      e.preventDefault();
+      draft.painting = true;
+      draft.paintPts = [clientToNat(e)];
+      try { stage.setPointerCapture(e.pointerId); } catch (err) { /* not critical */ }
+      document.getElementById("draftResults").classList.add("is-hidden");
+      document.getElementById("draftFillBtn").disabled = true;
+      draftDrawOverlay();
+    };
+    stage.onpointermove = function (e) {
+      if (!draft.paintMode || !draft.painting) return;
+      e.preventDefault();
+      draft.paintPts.push(clientToNat(e));
+      draftDrawOverlay();
+    };
+    function finishPaint(e) {
+      if (!draft.paintMode || !draft.painting) return;
+      draft.painting = false;
+      try { stage.releasePointerCapture(e.pointerId); } catch (err) { /* not critical */ }
+      if (draft.paintPts.length < 2) {
+        document.getElementById("draftHint").textContent = "That was too short — drag along the length of the stripe, then release.";
+        return;
+      }
+      document.getElementById("draftHint").textContent = "Scanning the painted area…";
+      draft.paintMode = false;
+      stage.classList.remove("is-painting");
+      draftRunPaintDetection();
+    }
+    stage.onpointerup = finishPaint;
+    stage.onpointercancel = finishPaint;
   }
 
   document.getElementById("addDraftBtn").addEventListener("click", function () {
@@ -2181,18 +2255,42 @@ import {
   });
   document.getElementById("draftClose").addEventListener("click", function () {
     document.getElementById("draftDialog").classList.add("is-hidden");
-    document.getElementById("draftStage").onclick = null;
+    var stage = document.getElementById("draftStage");
+    stage.onclick = null;
+    stage.onpointerdown = null;
+    stage.onpointermove = null;
+    stage.onpointerup = null;
+    stage.onpointercancel = null;
+    stage.classList.remove("is-painting");
+    draft.paintMode = false;
+    draft.painting = false;
     if (scanPreviewId) document.getElementById("scanPreviewDialog").classList.remove("is-hidden");
   });
   document.getElementById("draftRedetectBtn").addEventListener("click", draftRunDetection);
   document.getElementById("draftManualBtn").addEventListener("click", function () {
     draft.manualMode = true;
     draft.manualPts = [];
+    draft.paintMode = false;
+    draft.paintPts = [];
+    document.getElementById("draftStage").classList.remove("is-painting");
     draft.chordANat = null;
     draft.chordBNat = null;
     document.getElementById("draftResults").classList.add("is-hidden");
     document.getElementById("draftFillBtn").disabled = true;
     document.getElementById("draftHint").textContent = "Tap one end of the draft stripe, then the other.";
+    draftDrawOverlay();
+  });
+  document.getElementById("draftPaintBtn").addEventListener("click", function () {
+    draft.paintMode = true;
+    draft.manualMode = false;
+    draft.manualPts = [];
+    draft.paintPts = [];
+    document.getElementById("draftStage").classList.add("is-painting");
+    draft.chordANat = null;
+    draft.chordBNat = null;
+    document.getElementById("draftResults").classList.add("is-hidden");
+    document.getElementById("draftFillBtn").disabled = true;
+    document.getElementById("draftHint").textContent = "Drag your finger along the stripe, from one edge of the sail to the other, then release.";
     draftDrawOverlay();
   });
   document.getElementById("draftFillBtn").addEventListener("click", function () {
