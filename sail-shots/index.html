@@ -21,6 +21,7 @@
       <div class="title-block"><span>Artemis &amp; Gemera</span><strong>Sail Shots</strong></div>
       <div class="header-actions">
         <button id="addScanBtn" class="ghost-button" type="button">Add scan</button>
+        <button id="quickPhotoBtn" class="ghost-button" type="button">Add photo</button>
         <button id="downloadDataBtn" class="ghost-button" type="button">Download backup</button>
         <a class="ghost-button" href="../">Home</a>
       </div>
@@ -78,6 +79,12 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <section class="panel is-hidden" id="pendingPhotosPanel" style="margin-bottom:20px;">
+        <div class="section-kicker">Photos to scan</div>
+        <p class="import-step__hint" style="margin-bottom:14px;">Saved from the boat, not filled in yet — tap one to add the details and run the auto-scan.</p>
+        <div id="pendingPhotosGrid" class="thumb-grid thumb-grid--wide"></div>
       </section>
 
       <section class="panel" style="margin-bottom:20px;">
@@ -209,6 +216,28 @@
     </div>
   </div>
 
+  <div id="quickPhotoDialog" class="dialog is-hidden">
+    <div class="dialog__backdrop"></div>
+    <div class="dialog__panel" style="width:min(480px,100%);">
+      <div class="dialog__head">
+        <h2>Add photo</h2>
+        <button id="quickPhotoClose" class="text-link" type="button">Close</button>
+      </div>
+      <p class="import-step__hint" style="margin-bottom:16px;">Quickly save a photo from the boat — fill in the rest and scan it later, onshore.</p>
+      <label class="field-inline" style="margin-bottom:14px;"><span>Boat</span>
+        <select id="quickPhotoBoat"><option value="artemis">Artemis</option><option value="gemera">Gemera</option></select>
+      </label>
+      <label id="quickPhotoDrop" class="file-drop" style="margin-bottom:16px;">
+        <input id="quickPhotoInput" type="file" accept="image/*" required>
+        <span>Choose photo…</span>
+      </label>
+      <button id="quickPhotoSubmitBtn" type="button" class="ghost-button">Save photo</button>
+      <div id="quickPhotoProgressTrack" class="upload-progress is-hidden" style="margin-top:10px;">
+        <div id="quickPhotoProgressBar" class="upload-progress__bar" style="width:0%;"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="leechDialog" class="dialog is-hidden">
     <div class="dialog__backdrop"></div>
     <div class="dialog__panel" style="width:min(760px,100%);">
@@ -270,6 +299,6 @@
   <script src="../main-battens/firebase-config.js?v=20260922e"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="./draftstripe.js?v=20260923a"></script>
-  <script type="module" src="./app.js?v=20260923l"></script>
+  <script type="module" src="./app.js?v=20260923m"></script>
 </body>
 </html>

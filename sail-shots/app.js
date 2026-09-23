@@ -22,6 +22,15 @@ import {
   var COLLECTION = "rc44-sail-shots";
 
   var scans = JSON.parse(JSON.stringify(window.SAIL_SHOTS || []));
+  // Photos saved quickly from the boat (via "Add photo") with no details filled in yet — kept
+  // out of `scans` entirely so filters, compare, and the charts never see them, until someone
+  // taps "Scan this" and saves the rest, at which point they graduate into a normal scan.
+  var pendingPhotos = [];
+  function splitPending(list) {
+    var real = [], pending = [];
+    list.forEach(function (s) { (s.pending ? pending : real).push(s); });
+    return { real: real, pending: pending };
+  }
   var liveMode = false;
   var db = null, storage = null;
   // Any number of scans, regardless of boat — feeds the data table, charts and (for the first two
@@ -38,11 +47,14 @@ import {
   function tagDefaultSail(list) { list.forEach(function (s) { if (!s.sail) s.sail = "Main"; }); }
   tagDefaultSail(scans);
 
-  function findScan(id) { return scans.filter(function (s) { return s.id === id; })[0] || null; }
+  function findScan(id) {
+    return scans.filter(function (s) { return s.id === id; })[0] ||
+      pendingPhotos.filter(function (s) { return s.id === id; })[0] || null;
+  }
 
   function safeGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function safeSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } }
-  function persistLocal() { safeSet(STORAGE_KEY, JSON.stringify(scans)); }
+  function persistLocal() { safeSet(STORAGE_KEY, JSON.stringify(scans.concat(pendingPhotos))); }
 
   // ---------- Firebase init (falls back to local-only if not configured) ----------
 
@@ -79,8 +91,14 @@ import {
     liveMode = false;
     document.getElementById("configWarning").classList.remove("is-hidden");
     var raw = safeGet(STORAGE_KEY);
-    if (raw) { try { scans = JSON.parse(raw); } catch (e) { /* ignore */ } }
-    tagDefaultSail(scans);
+    if (raw) {
+      try {
+        var split = splitPending(JSON.parse(raw));
+        scans = split.real;
+        pendingPhotos = split.pending;
+        tagDefaultSail(scans);
+      } catch (e) { /* ignore */ }
+    }
     renderAll();
   }
 
@@ -95,8 +113,10 @@ import {
       seededCheck = true;
       var list = [];
       snap.forEach(function (d) { list.push(d.data()); });
-      tagDefaultSail(list);
-      scans = list;
+      var split = splitPending(list);
+      tagDefaultSail(split.real);
+      scans = split.real;
+      pendingPhotos = split.pending;
       renderAll();
     }, function (err) {
       console.error("Sail Shots sync error", err);
@@ -1130,10 +1150,36 @@ import {
   function renderAll() {
     refreshFilterOptions();
     renderCatalogAll();
+    renderPendingPhotos();
     renderCompareBoxes();
     renderCompareData();
     renderOverlay();
     renderMetricCharts();
+  }
+
+  function renderPendingPhotos() {
+    var panel = document.getElementById("pendingPhotosPanel");
+    var grid = document.getElementById("pendingPhotosGrid");
+    if (!pendingPhotos.length) {
+      panel.classList.add("is-hidden");
+      grid.innerHTML = "";
+      return;
+    }
+    panel.classList.remove("is-hidden");
+    var sorted = pendingPhotos.slice().sort(function (a, b) { return (b.time || "").localeCompare(a.time || ""); });
+    grid.innerHTML = "";
+    sorted.forEach(function (s) {
+      var card = document.createElement("button");
+      card.type = "button";
+      card.className = "thumb";
+      var dotClass = s.boat === "gemera" ? "boat-dot--gemera" : "boat-dot--artemis";
+      var when = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s.time || "") ? s.time.slice(0, 16).replace("T", " ") : (s.time || "");
+      card.innerHTML =
+        "<span class='boat-dot " + dotClass + "' style='position:absolute; top:6px; left:6px; z-index:2;'></span>" +
+        "<img src='" + s.file + "' alt=''><span>" + (BOAT_LABEL[s.boat] || s.boat) + " · " + when + "</span>";
+      card.addEventListener("click", function () { openEditDialog(s.id); });
+      grid.appendChild(card);
+    });
   }
 
   // ---------- Mast calibration dialog ----------
@@ -1611,11 +1657,14 @@ import {
     pendingMast2 = scan.mast2 || null;
     pendingLeech = scan.leech || null;
 
-    document.getElementById("addScanDialogTitle").textContent = "Edit scan";
-    document.getElementById("addScanSubmitBtn").textContent = "Save changes";
+    document.getElementById("addScanDialogTitle").textContent = scan.pending ? "Finish scan" : "Edit scan";
+    document.getElementById("addScanSubmitBtn").textContent = scan.pending ? "Save scan" : "Save changes";
     document.getElementById("addPhotoInput").required = false;
     document.getElementById("addPhotoDrop").classList.add("is-hidden");
     document.getElementById("editPhotoNote").classList.remove("is-hidden");
+    document.getElementById("editPhotoNote").textContent = scan.pending
+      ? "Photo already saved from the boat — fill in the rest below. Boat is already set; change it here if needed."
+      : "Editing an existing scan — the photo itself can't be changed here, just the details below.";
 
     document.getElementById("addBoat").value = scan.boat || "artemis";
     document.getElementById("addSail").value = scan.sail || "Main";
@@ -1641,8 +1690,17 @@ import {
     document.getElementById("addLeechStatus").textContent = scan.leech ? "Set" : "Not set";
     document.getElementById("addLeechBtn").disabled = false;
     document.getElementById("addDraftBtn").disabled = false;
-    document.getElementById("draftAutoStatus").textContent = "Editing an existing scan — tap “Scan draft stripe” if you want to re-scan its photo.";
     setOcrStatus("");
+
+    if (scan.pending) {
+      // A quickly-saved boat photo with nothing filled in yet — run the same auto-fill pass
+      // a freshly-chosen photo gets, since this is effectively "choosing" it for the first time.
+      document.getElementById("draftAutoStatus").textContent = "Scanning the photo for a draft stripe…";
+      scanPhotoForData(scan.file);
+      autoFillOnPhotoChoice(scan.file);
+    } else {
+      document.getElementById("draftAutoStatus").textContent = "Editing an existing scan — tap “Scan draft stripe” if you want to re-scan its photo.";
+    }
     document.getElementById("addScanDialog").classList.remove("is-hidden");
   }
 
@@ -2198,7 +2256,8 @@ import {
       mast: pendingMast,
       leech: pendingLeech,
       mast2: pendingMast2,
-      camber: camber
+      camber: camber,
+      pending: false
     };
 
     var submitBtn = document.getElementById("addScanSubmitBtn");
@@ -2335,6 +2394,113 @@ import {
   document.getElementById("addScanClose").addEventListener("click", function () {
     resetAddDialogChrome();
     document.getElementById("addScanDialog").classList.add("is-hidden");
+  });
+
+  // ---------- Quick photo (boat-side capture, filled in later) ----------
+  // Deliberately minimal: boat + photo, one tap to save. Stored as a "pending" doc in the same
+  // collection, kept out of `scans` (and so out of filters/compare/charts) until someone opens
+  // it from the "Photos to scan" list and saves the rest — at which point it's an ordinary scan.
+  var quickPhotoFile = null;
+
+  function localDateTimeString(d) {
+    function pad(n) { return n < 10 ? "0" + n : "" + n; }
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" +
+      pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+  }
+
+  function resetQuickPhotoDialog() {
+    quickPhotoFile = null;
+    document.getElementById("quickPhotoInput").value = "";
+    document.getElementById("quickPhotoSubmitBtn").disabled = false;
+    document.getElementById("quickPhotoSubmitBtn").textContent = "Save photo";
+    document.getElementById("quickPhotoProgressTrack").classList.add("is-hidden");
+    document.getElementById("quickPhotoProgressBar").style.width = "0%";
+  }
+
+  document.getElementById("quickPhotoBtn").addEventListener("click", function () {
+    resetQuickPhotoDialog();
+    document.getElementById("quickPhotoDialog").classList.remove("is-hidden");
+  });
+  document.getElementById("quickPhotoClose").addEventListener("click", function () {
+    document.getElementById("quickPhotoDialog").classList.add("is-hidden");
+  });
+  document.getElementById("quickPhotoInput").addEventListener("change", function (e) {
+    quickPhotoFile = e.target.files[0] || null;
+  });
+
+  document.getElementById("quickPhotoSubmitBtn").addEventListener("click", function () {
+    if (!quickPhotoFile) { alert("Choose a photo first."); return; }
+    var boat = document.getElementById("quickPhotoBoat").value;
+    var id = boat + "-" + Date.now().toString(36);
+    var submitBtn = document.getElementById("quickPhotoSubmitBtn");
+    submitBtn.disabled = true;
+
+    function saveDoc(fileUrl) {
+      var docData = { id: id, boat: boat, file: fileUrl, time: localDateTimeString(new Date()), pending: true };
+      if (liveMode) {
+        setDoc(doc(db, COLLECTION, id), docData).then(function () {
+          document.getElementById("quickPhotoDialog").classList.add("is-hidden");
+        }).catch(function (e) {
+          console.error("Quick photo save failed", e);
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Save photo";
+          alert("Couldn't save this photo — check your connection. (" + e.message + ")");
+        });
+      } else {
+        pendingPhotos.push(docData);
+        persistLocal();
+        renderAll();
+        document.getElementById("quickPhotoDialog").classList.add("is-hidden");
+      }
+    }
+
+    if (liveMode) {
+      var progressTrack = document.getElementById("quickPhotoProgressTrack");
+      var progressBar = document.getElementById("quickPhotoProgressBar");
+      progressTrack.classList.remove("is-hidden");
+      submitBtn.textContent = "Uploading… 0%";
+
+      var extMatch = quickPhotoFile.name && quickPhotoFile.name.match(/\.[a-zA-Z0-9]+$/);
+      var ext = extMatch ? extMatch[0] : ".jpg";
+      var sref = storageRef(storage, "sail-shots/" + id + ext);
+      var uploadTask = uploadBytesResumable(sref, quickPhotoFile);
+
+      var lastBytes = -1, stallTimer = null;
+      function armStallTimer() {
+        if (stallTimer) clearTimeout(stallTimer);
+        stallTimer = setTimeout(function () { uploadTask.cancel(); }, 25000);
+      }
+      armStallTimer();
+
+      uploadTask.on("state_changed", function (snapshot) {
+        if (snapshot.bytesTransferred !== lastBytes) {
+          lastBytes = snapshot.bytesTransferred;
+          armStallTimer();
+        }
+        var pct = snapshot.totalBytes ? Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100) : 0;
+        submitBtn.textContent = "Uploading… " + pct + "%";
+        progressBar.style.width = pct + "%";
+      }, function (err) {
+        clearTimeout(stallTimer);
+        progressTrack.classList.add("is-hidden");
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Save photo";
+        var stalled = err && err.code === "storage/canceled";
+        console.error("Quick photo upload failed", err);
+        alert((stalled ? "The upload stalled — no progress for 25s, so it was cancelled." : "Couldn't upload this photo (" + ((err && err.message) || err) + ").") +
+          " Check your connection and tap Save photo again.");
+      }, function () {
+        clearTimeout(stallTimer);
+        getDownloadURL(sref).then(function (url) {
+          progressTrack.classList.add("is-hidden");
+          saveDoc(url);
+        });
+      });
+    } else {
+      var reader = new FileReader();
+      reader.onload = function () { saveDoc(reader.result); };
+      reader.readAsDataURL(quickPhotoFile);
+    }
   });
 
   // ---------- Backup export ----------
