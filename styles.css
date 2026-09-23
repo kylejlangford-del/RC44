@@ -1660,20 +1660,65 @@ select:focus, input:focus, textarea:focus {
 /* ---- Full inventory view (Main Battens) ---- */
 
 .inv-position {
-  margin-bottom: 22px;
+  margin-bottom: 10px;
 }
 
 .inv-position__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
 }
 
-.inv-position__head h3 {
+.inv-position__toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex: 1 1 auto;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inv-position__toggle:hover .inv-position__title { color: var(--accent); }
+
+.inv-position__caret {
+  flex: 0 0 auto;
+  font-size: .62rem;
+  color: var(--muted);
+  transition: transform .15s ease;
+}
+
+.inv-position__toggle.is-open .inv-position__caret { transform: rotate(90deg); }
+
+.inv-position__title {
   margin: 0;
   font-size: .92rem;
+  font-weight: 600;
   color: var(--muted-2);
+  flex: 0 0 auto;
+}
+
+.inv-position__summary {
+  font-size: .78rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.inv-position__body {
+  margin-top: 10px;
 }
 
 .inv-row {

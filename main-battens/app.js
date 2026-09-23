@@ -31,6 +31,11 @@ import {
   var db = null;
   var currentView = "comparison";
 
+  // Full inventory view: which B-position blocks are expanded, per boat. Collapsed by default —
+  // the list gets long once a few alternates pile up in each slot, so start tidy and let people
+  // open just the slot they came to look at. Per-browser only, not synced.
+  var invOpenSlots = { artemis: {}, gemera: {} };
+
   // Which mainsail's inventory each boat is currently showing (Artemis: M12/M13, Gemera: M1/M2).
   // This is a per-device UI choice (not synced) — each boat defaults to its first listed mainsail.
   var currentSail = {};
@@ -778,12 +783,30 @@ import {
       container.innerHTML = "";
       POSITIONS.forEach(function (pos) {
         var slot = slotsFor(boat)[pos];
+        var isOpen = !!invOpenSlots[boat][pos];
+
         var block = document.createElement("div");
         block.className = "inv-position";
 
         var head = document.createElement("div");
         head.className = "inv-position__head";
-        head.innerHTML = "<h3>B" + pos + "</h3>";
+
+        var toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "inv-position__toggle" + (isOpen ? " is-open" : "");
+        var installed = slot.installed ? findBatten(boat, pos, slot.installed) : null;
+        var count = slot.battens.length;
+        var summary = count + (count === 1 ? " batten" : " battens") +
+          (installed ? " · installed: " + installed.name : count ? " · none installed" : "");
+        toggle.innerHTML = "<span class='inv-position__caret'>&#9656;</span>" +
+          "<span class='inv-position__title'>B" + pos + "</span>" +
+          "<span class='inv-position__summary'>" + escapeHtml(summary) + "</span>";
+        toggle.addEventListener("click", function () {
+          invOpenSlots[boat][pos] = !invOpenSlots[boat][pos];
+          renderFullInventory();
+        });
+        head.appendChild(toggle);
+
         var addLink = document.createElement("button");
         addLink.type = "button";
         addLink.className = "text-link";
@@ -792,17 +815,21 @@ import {
         head.appendChild(addLink);
         block.appendChild(head);
 
+        var body = document.createElement("div");
+        body.className = "inv-position__body" + (isOpen ? "" : " is-hidden");
+
         if (!slot.battens.length) {
           var empty = document.createElement("p");
           empty.className = "import-step__hint";
           empty.textContent = "No battens recorded for this slot yet.";
-          block.appendChild(empty);
+          body.appendChild(empty);
         }
 
         sortByEi(slot.battens).forEach(function (b) {
-          block.appendChild(buildBattenRow(boat, pos, b));
+          body.appendChild(buildBattenRow(boat, pos, b));
         });
 
+        block.appendChild(body);
         container.appendChild(block);
       });
     });
