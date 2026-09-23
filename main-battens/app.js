@@ -332,9 +332,6 @@ import {
     btn.addEventListener("click", function () { openManage(btn.dataset.addBatten, 1); });
   });
 
-  var suggestTwsInput = document.getElementById("suggestTws");
-  if (suggestTwsInput) suggestTwsInput.addEventListener("input", function () { renderCompare(); });
-
   // ---------- Mainsail toggle (per boat: Artemis M12/M13, Gemera M1/M2) ----------
 
   function renderSailToggles() {
@@ -357,11 +354,6 @@ import {
         });
       });
     });
-    var note = document.getElementById("compareSailNote");
-    if (note) {
-      note.textContent = "Comparing Artemis " + currentSail.artemis + " vs Gemera " + currentSail.gemera +
-        ". Green = softer, red = stiffer. Colour intensity is relative to the biggest EI gap among the 6 positions right now.";
-    }
   }
 
   // ---------- Core helpers ----------
@@ -411,7 +403,6 @@ import {
   function renderAll() {
     renderSailToggles();
     render();
-    renderCompare();
     renderSuggestedSet();
     if (currentView === "inventory") renderFullInventory();
     if (currentView === "crossover") renderCrossoverAll();
@@ -474,103 +465,49 @@ import {
     });
   }
 
+  // Biggest EI gap among the 6 positions right now — scales how strong the red/green tint on
+  // each delta badge is, same idea as the old side-by-side panel used.
+  function eiMaxAbsDelta() {
+    var maxAbs = 0;
+    POSITIONS.forEach(function (pos) {
+      var a = slotsFor("artemis")[pos].installed ? findBatten("artemis", pos, slotsFor("artemis")[pos].installed) : null;
+      var g = slotsFor("gemera")[pos].installed ? findBatten("gemera", pos, slotsFor("gemera")[pos].installed) : null;
+      if (a && g && typeof a.ei === "number" && typeof g.ei === "number") {
+        var d = Math.abs(a.ei - g.ei);
+        if (d > maxAbs) maxAbs = d;
+      }
+    });
+    return maxAbs;
+  }
+
+  // Shows this boat's EI for the position, plus (when both boats have one installed there) a
+  // small red/green delta badge against the other boat — folds what used to be a separate
+  // "Side-by-side comparison" panel straight into the picker, instead of repeating the same
+  // six positions twice on the page.
   function renderEi(boat, pos) {
     var slot = slotsFor(boat)[pos];
     var el = document.getElementById("ei-" + boat + "-" + pos);
     var b = slot.installed ? findBatten(boat, pos, slot.installed) : null;
-    el.textContent = b ? eiLabel(b.ei) : "—";
-  }
+    el.innerHTML = "";
 
-  // ---------- Comparison list (flex rows — never needs horizontal scroll) + EI colour scale ----------
+    var main = document.createElement("span");
+    main.textContent = b ? eiLabel(b.ei) : "—";
+    el.appendChild(main);
 
-  function renderCompare() {
-    var list = document.getElementById("compareList");
-    list.innerHTML = "";
-
-    // Auto-scale colour intensity to the biggest EI gap among the 6 positions right now.
-    var deltas = {};
-    var maxAbs = 0;
-    POSITIONS.forEach(function (pos) {
-      var artSlot = slotsFor("artemis")[pos], gemSlot = slotsFor("gemera")[pos];
-      var a = artSlot.installed ? findBatten("artemis", pos, artSlot.installed) : null;
-      var g = gemSlot.installed ? findBatten("gemera", pos, gemSlot.installed) : null;
-      if (a && g && typeof a.ei === "number" && typeof g.ei === "number") {
-        var d = a.ei - g.ei;
-        deltas[pos] = d;
-        if (Math.abs(d) > maxAbs) maxAbs = Math.abs(d);
-      } else {
-        deltas[pos] = null;
-      }
-    });
-
-    POSITIONS.forEach(function (pos) {
-      var d = deltas[pos];
-      var alpha = (d !== null && maxAbs > 0) ? (0.14 + 0.5 * Math.min(1, Math.abs(d) / maxAbs)) : 0;
-
-      var row = document.createElement("div");
-      row.className = "compare-row";
-
-      var head = document.createElement("div");
-      head.className = "compare-row__head";
-      head.textContent = "B" + pos;
-      row.appendChild(head);
-
-      var boatsWrap = document.createElement("div");
-      boatsWrap.className = "compare-row__boats";
-      row.appendChild(boatsWrap);
-
-      BOATS.forEach(function (boat) {
-        var slot = slotsFor(boat)[pos];
-        var b = slot.installed ? findBatten(boat, pos, slot.installed) : null;
-
-        var boatWrap = document.createElement("div");
-        boatWrap.className = "compare-row__boat";
-
-        var label = document.createElement("span");
-        label.className = "compare-row__boat-label";
-        label.textContent = boat === "artemis" ? "Artemis" : "Gemera";
-        boatWrap.appendChild(label);
-
-        var name = document.createElement("span");
-        name.className = "compare-row__name";
-        name.textContent = b ? b.name : "—";
-        boatWrap.appendChild(name);
-
-        if (b) {
-          var eiPill = document.createElement("span");
-          eiPill.className = "compare-row__ei";
-          eiPill.textContent = eiLabel(b.ei);
-          if (d !== null && d !== 0) {
-            var thisIsStiffer = (boat === "artemis" && d > 0) || (boat === "gemera" && d < 0);
-            eiPill.style.backgroundColor = thisIsStiffer ? "rgba(255,90,90," + alpha + ")" : "rgba(75,224,138," + alpha + ")";
-            eiPill.style.color = thisIsStiffer ? "#ffcfcf" : "#c8ffe0";
-          } else {
-            eiPill.style.color = "var(--muted-2)";
-          }
-          boatWrap.appendChild(eiPill);
-        }
-
-        boatsWrap.appendChild(boatWrap);
-      });
-
-      var result = document.createElement("div");
-      result.className = "compare-row__result";
-      if (d === null) {
-        result.innerHTML = "<span class='ei-chip ei-chip--even'>—</span>";
-      } else if (d === 0) {
-        result.innerHTML = "<span class='ei-chip ei-chip--even'>Same stiffness</span>";
-      } else {
-        var stifferBoat = d > 0 ? "Artemis" : "Gemera";
-        var chipAlpha = 0.18 + 0.5 * Math.min(1, Math.abs(d) / maxAbs);
-        result.innerHTML =
-          "<span class='ei-chip ei-chip--stiff' style='background: rgba(255,90,90," + chipAlpha + ")'>" +
-          stifferBoat + " stiffer</span> " +
-          "<span style='color: var(--muted-2); font-size:.78rem;'>(" + (d > 0 ? "+" : "") + d + " EI)</span>";
-      }
-      row.appendChild(result);
-
-      list.appendChild(row);
-    });
+    var otherBoat = boat === "artemis" ? "gemera" : "artemis";
+    var otherSlot = slotsFor(otherBoat)[pos];
+    var o = otherSlot.installed ? findBatten(otherBoat, pos, otherSlot.installed) : null;
+    if (b && o && typeof b.ei === "number" && typeof o.ei === "number" && b.ei !== o.ei) {
+      var d = b.ei - o.ei;
+      var maxAbs = eiMaxAbsDelta() || Math.abs(d);
+      var alpha = 0.55 + 0.35 * Math.min(1, Math.abs(d) / maxAbs);
+      var badge = document.createElement("span");
+      badge.className = "batten-slot__delta";
+      badge.textContent = (d > 0 ? "+" : "") + d;
+      badge.style.color = d > 0 ? "rgba(255,140,140," + alpha + ")" : "rgba(120,235,170," + alpha + ")";
+      badge.title = (d > 0 ? "Stiffer" : "Softer") + " than " + (otherBoat === "artemis" ? "Artemis" : "Gemera") + " here by " + Math.abs(d) + " EI";
+      el.appendChild(badge);
+    }
   }
 
   // ---------- Suggested set up (TWS-based, below the comparison) ----------
@@ -751,7 +688,6 @@ import {
             slotsFor(boat)[pos].installed = m.id;
             saveBoat(boat);
             render();
-            renderCompare();
             renderSuggestedSet();
           }
         };
@@ -935,7 +871,6 @@ import {
   // showing this data (dropdowns, EI labels, comparison list, full inventory, manage dialog).
   function afterBattenChange() {
     render();
-    renderCompare();
     if (currentView === "inventory") renderFullInventory();
     if (!document.getElementById("manageDialog").classList.contains("is-hidden")) renderManageList();
   }
