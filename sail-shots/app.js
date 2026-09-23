@@ -12,7 +12,7 @@ import {
   getAuth, signInAnonymously, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
-  getStorage, ref as storageRef, uploadBytes, getDownloadURL
+  getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
 (function () {
@@ -1427,6 +1427,8 @@ import {
     document.getElementById("addPhotoInput").required = true;
     document.getElementById("addPhotoDrop").classList.remove("is-hidden");
     document.getElementById("editPhotoNote").classList.add("is-hidden");
+    document.getElementById("uploadProgressTrack").classList.add("is-hidden");
+    document.getElementById("uploadProgressBar").style.width = "0%";
   }
 
   function fillCamberRows(camber) {
@@ -1691,23 +1693,67 @@ import {
     }
 
     if (liveMode) {
-      submitBtn.textContent = "Uploading photo…";
+      var progressTrack = document.getElementById("uploadProgressTrack");
+      var progressBar = document.getElementById("uploadProgressBar");
+      progressTrack.classList.remove("is-hidden");
+      progressBar.style.width = "0%";
+      submitBtn.textContent = "Uploading photo… 0%";
+
       var extMatch = photoFile.name && photoFile.name.match(/\.[a-zA-Z0-9]+$/);
       var ext = extMatch ? extMatch[0] : ".jpg";
       var sref = storageRef(storage, "sail-shots/" + id + ext);
-      uploadBytes(sref, photoFile).then(function () {
-        return getDownloadURL(sref);
-      }).then(function (url) {
-        scan.file = url;
-        submitBtn.textContent = "Saving…";
-        return setDoc(doc(db, COLLECTION, id), scan);
-      }).then(function () {
-        finishSave(scan);
-      }).catch(function (e) {
-        console.error("Save scan failed", e);
+      var uploadTask = uploadBytesResumable(sref, photoFile);
+
+      // Uploads can silently hang on a flaky connection (no error, no progress, forever).
+      // Watch for that: if bytesTransferred hasn't moved in 25s, cancel so the sailor gets
+      // a clear failure instead of a button stuck on "Uploading..." indefinitely.
+      var lastBytes = -1;
+      var stallTimer = null;
+      function armStallTimer() {
+        if (stallTimer) clearTimeout(stallTimer);
+        stallTimer = setTimeout(function () { uploadTask.cancel(); }, 25000);
+      }
+      armStallTimer();
+
+      function uploadFailed(err) {
+        clearTimeout(stallTimer);
+        progressTrack.classList.add("is-hidden");
         submitBtn.disabled = false;
         submitBtn.textContent = "Save scan";
-        alert("Couldn't save this scan — check your connection. (" + e.message + ")");
+        var stalled = err && err.code === "storage/canceled";
+        console.error("Photo upload failed", err);
+        alert(
+          (stalled
+            ? "The photo upload stalled — no progress for 25s, so it was cancelled."
+            : "Couldn't upload this photo (" + ((err && err.message) || err) + ").") +
+          " Check your connection and hit Save scan again — your details and photo are still filled in."
+        );
+      }
+
+      uploadTask.on("state_changed", function (snapshot) {
+        if (snapshot.bytesTransferred !== lastBytes) {
+          lastBytes = snapshot.bytesTransferred;
+          armStallTimer();
+        }
+        var pct = snapshot.totalBytes ? Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100) : 0;
+        submitBtn.textContent = "Uploading photo… " + pct + "%";
+        progressBar.style.width = pct + "%";
+      }, uploadFailed, function () {
+        clearTimeout(stallTimer);
+        getDownloadURL(sref).then(function (url) {
+          scan.file = url;
+          submitBtn.textContent = "Saving…";
+          progressTrack.classList.add("is-hidden");
+          return setDoc(doc(db, COLLECTION, id), scan);
+        }).then(function () {
+          finishSave(scan);
+        }).catch(function (e) {
+          console.error("Save scan failed", e);
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Save scan";
+          progressTrack.classList.add("is-hidden");
+          alert("Couldn't save this scan — check your connection. (" + e.message + ")");
+        });
       });
     } else {
       finishSave(scan);

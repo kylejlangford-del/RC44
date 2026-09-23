@@ -621,6 +621,21 @@ select:focus, input:focus, textarea:focus {
 
 .file-drop input { display: none; }
 
+.upload-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  overflow: hidden;
+  max-width: 320px;
+}
+
+.upload-progress__bar {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  transition: width .2s ease;
+}
+
 .import-summary {
   margin-top: 14px;
   font-size: .84rem;
