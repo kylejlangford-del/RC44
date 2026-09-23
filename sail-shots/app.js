@@ -31,6 +31,7 @@ import {
   var SLOT_COLORS = ["var(--artemis)", "var(--gemera)", "var(--stiff)", "var(--soft)", "var(--accent)", "var(--accent-2)"];
   function slotColor(i) { return SLOT_COLORS[i % SLOT_COLORS.length]; }
   var sailFilter = ""; // "" = all sails; else "Main" | "G1" | "J2" | "J3"
+  var teamFilter = ""; // "" = both teams; else "artemis" | "gemera"
 
   // Existing scans predate the Main/G1/J2/J3 split — they're all mainsail battens, so tag
   // anything without a sail code as "Main" rather than losing them from the filter.
@@ -168,6 +169,33 @@ import {
     if (loEl.value === "" || Number(loEl.value) < twsMin) loEl.value = twsMin;
     if (hiEl.value === "" || Number(hiEl.value) > twsMax) hiEl.value = twsMax;
     updateTwsLabel();
+    renderTwsHistogram(twsMin, twsMax);
+  }
+
+  // How many scans fall in each TWS bin (ignoring the TWS range itself, so the histogram
+  // shows the full spread available under the other active filters — team, sail, date, etc.
+  // — as context for picking a range, the same idea as the reference wind-app screenshot).
+  function renderTwsHistogram(min, max) {
+    var wrap = document.getElementById("twsHistogram");
+    if (!wrap) return;
+    var binCount = Math.max(1, Math.min(60, Math.round(max - min)));
+    var binWidth = (max - min) / binCount;
+    var counts = new Array(binCount).fill(0);
+    scans.forEach(function (s) {
+      if (!passesFilter(s, { skipTws: true })) return;
+      var tws = s.wind && s.wind.tws;
+      if (tws === null || tws === undefined) return;
+      var idx = Math.floor((tws - min) / binWidth);
+      if (idx < 0) idx = 0;
+      if (idx >= binCount) idx = binCount - 1;
+      counts[idx]++;
+    });
+    var maxCount = Math.max.apply(null, counts.concat([1]));
+    wrap.innerHTML = counts.map(function (c) {
+      var h = c ? Math.max(6, Math.round((c / maxCount) * 100)) : 0;
+      var title = c + " scan" + (c === 1 ? "" : "s");
+      return "<div class='tws-histogram__bar' style='height:" + h + "%;' title='" + title + "'></div>";
+    }).join("");
   }
 
   function updateTwsLabel() {
@@ -217,7 +245,7 @@ import {
     });
   }
 
-  function passesFilter(scan) {
+  function passesFilter(scan, opts) {
     var event = document.getElementById("fEvent").value;
     var sailCode = document.getElementById("fSailCode").value;
     var bsp = document.getElementById("fBsp").value;
@@ -237,9 +265,12 @@ import {
     if (trimtab && String(scan.mechanic && scan.mechanic.trimtab) !== trimtab) return false;
     if (rake && String(scan.mechanic && scan.mechanic.rake) !== rake) return false;
     if (sailFilter && (scan.sail || "Main") !== sailFilter) return false;
+    if (teamFilter && scan.boat !== teamFilter) return false;
 
-    var tws = scan.wind ? scan.wind.tws : null;
-    if (tws !== null && tws !== undefined && (tws < twsLo || tws > twsHi)) return false;
+    if (!(opts && opts.skipTws)) {
+      var tws = scan.wind ? scan.wind.tws : null;
+      if (tws !== null && tws !== undefined && (tws < twsLo || tws > twsHi)) return false;
+    }
 
     return true;
   }
@@ -248,6 +279,16 @@ import {
     btn.addEventListener("click", function () {
       sailFilter = btn.dataset.sail;
       document.querySelectorAll("#sailToggle .view-toggle__btn").forEach(function (b) {
+        b.classList.toggle("is-active", b === btn);
+      });
+      renderAll();
+    });
+  });
+
+  document.querySelectorAll("#teamToggle .view-toggle__btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      teamFilter = btn.dataset.team;
+      document.querySelectorAll("#teamToggle .view-toggle__btn").forEach(function (b) {
         b.classList.toggle("is-active", b === btn);
       });
       renderAll();
@@ -273,9 +314,13 @@ import {
       document.getElementById(id).value = "";
     });
     sailFilter = "";
+    teamFilter = "";
     datesInitialized = false; // re-defaults to "most recent day only" on next render
     document.querySelectorAll("#sailToggle .view-toggle__btn").forEach(function (b) {
       b.classList.toggle("is-active", b.dataset.sail === "");
+    });
+    document.querySelectorAll("#teamToggle .view-toggle__btn").forEach(function (b) {
+      b.classList.toggle("is-active", b.dataset.team === "");
     });
     refreshFilterOptions();
     renderAll();

@@ -821,12 +821,25 @@ select:focus, input:focus, textarea:focus {
 
 /* ---------- Sail Shots comparison ---------- */
 
+.filter-row {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
 .filter-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
   align-items: flex-end;
-  margin-bottom: 18px;
+  flex: 1 1 420px;
+}
+
+.tws-filter {
+  flex: 0 0 280px;
+  max-width: 340px;
 }
 
 .split-view {
@@ -1149,13 +1162,33 @@ select:focus, input:focus, textarea:focus {
 
 .dual-slider {
   position: relative;
-  height: 30px;
+  height: 54px;
+}
+
+.tws-histogram {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 38px;
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  pointer-events: none;
+}
+
+.tws-histogram__bar {
+  flex: 1 1 0;
+  min-width: 1px;
+  min-height: 2px;
+  background: rgba(71, 231, 219, .3);
+  border-radius: 2px 2px 0 0;
 }
 
 .dual-slider input[type="range"] {
   position: absolute;
   left: 0;
-  top: 10px;
+  top: 38px;
   width: 100%;
   margin: 0;
   background: transparent;

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#07111d" />
   <title>Sail Shots · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20260923g" />
+  <link rel="stylesheet" href="../styles.css?v=20260923h" />
 </head>
 <body>
   <div class="bg-glow bg-glow--one"></div>
@@ -44,6 +44,11 @@
 
       <section class="panel" style="margin-bottom:20px;">
         <div class="section-kicker">Filter</div>
+        <div class="view-toggle" id="teamToggle" role="tablist" style="margin-bottom:14px;">
+          <button class="view-toggle__btn is-active" type="button" data-team="">Both teams</button>
+          <button class="view-toggle__btn" type="button" data-team="artemis">Artemis</button>
+          <button class="view-toggle__btn" type="button" data-team="gemera">Gemera</button>
+        </div>
         <div class="view-toggle" id="sailToggle" role="tablist" style="margin-bottom:14px;">
           <button class="view-toggle__btn is-active" type="button" data-sail="">All sails</button>
           <button class="view-toggle__btn" type="button" data-sail="Main">Main</button>
@@ -53,21 +58,24 @@
         </div>
         <div class="section-kicker">Date <span style="text-transform:none; font-weight:400; color:var(--muted);">— defaults to the most recent day; click to add more</span></div>
         <div class="view-toggle" id="dateToggle" role="tablist" style="margin-bottom:14px; flex-wrap:wrap; row-gap:8px;"></div>
-        <div class="filter-bar">
-          <label class="field-inline"><span>Event</span><select id="fEvent"></select></label>
-          <label class="field-inline"><span>Sail code</span><select id="fSailCode"></select></label>
-          <label class="field-inline"><span>Boat speed</span><select id="fBsp"></select></label>
-          <label class="field-inline"><span>Chock size</span><select id="fChock"></select></label>
-          <label class="field-inline"><span>Mast setup</span><select id="fMastSetup"></select></label>
-          <label class="field-inline"><span>Trim tab</span><select id="fTrimtab"></select></label>
-          <label class="field-inline"><span>Rake</span><select id="fRake"></select></label>
-          <button id="resetFiltersBtn" class="ghost-button" type="button">Reset</button>
-        </div>
-        <div class="field-inline" style="margin-top:14px; max-width:420px;">
-          <span>TWS range — <span id="fTwsLabel"></span></span>
-          <div class="dual-slider">
-            <input id="fTwsLo" type="range" min="0" max="30" step="0.5" value="0">
-            <input id="fTwsHi" type="range" min="0" max="30" step="0.5" value="30">
+        <div class="filter-row">
+          <div class="filter-bar" style="margin-bottom:0;">
+            <label class="field-inline"><span>Event</span><select id="fEvent"></select></label>
+            <label class="field-inline"><span>Sail code</span><select id="fSailCode"></select></label>
+            <label class="field-inline"><span>Boat speed</span><select id="fBsp"></select></label>
+            <label class="field-inline"><span>Chock size</span><select id="fChock"></select></label>
+            <label class="field-inline"><span>Mast setup</span><select id="fMastSetup"></select></label>
+            <label class="field-inline"><span>Trim tab</span><select id="fTrimtab"></select></label>
+            <label class="field-inline"><span>Rake</span><select id="fRake"></select></label>
+            <button id="resetFiltersBtn" class="ghost-button" type="button">Reset</button>
+          </div>
+          <div class="field-inline tws-filter">
+            <span>TWS range — <span id="fTwsLabel"></span> <span style="text-transform:none; font-weight:400;">— bars show scans per bin</span></span>
+            <div class="dual-slider">
+              <div class="tws-histogram" id="twsHistogram"></div>
+              <input id="fTwsLo" type="range" min="0" max="30" step="0.5" value="0">
+              <input id="fTwsHi" type="range" min="0" max="30" step="0.5" value="30">
+            </div>
           </div>
         </div>
       </section>
@@ -207,6 +215,6 @@
   <script src="./data.js?v=20260922a"></script>
   <script src="../main-battens/firebase-config.js?v=20260922e"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script type="module" src="./app.js?v=20260923g"></script>
+  <script type="module" src="./app.js?v=20260923i"></script>
 </body>
 </html>
