@@ -718,6 +718,23 @@ select:focus, input:focus, textarea:focus {
   letter-spacing: .06em;
 }
 
+/* When comparing multiple sails, each sail's whole column block (all its metrics + Tgt
+   columns, header rows down to the last data row) gets a colored box drawn around it —
+   left/right edges on the outer columns, a top edge on the sail-name header, a bottom edge
+   on the last data row — so it's unambiguous which columns belong to "sail 1" vs "sail 2". */
+.compare-table--tgt .sail-box-start {
+  border-left: 2px solid var(--accent);
+}
+.compare-table--tgt .sail-box-end {
+  border-right: 2px solid var(--accent);
+}
+.compare-table--tgt .sail-box-top {
+  border-top: 2px solid var(--accent);
+}
+.compare-table--tgt .sail-box-bottom {
+  border-bottom: 2px solid var(--accent) !important;
+}
+
 .correction-input {
   width: 100%;
   min-width: 110px;

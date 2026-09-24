@@ -579,19 +579,36 @@ import {
 
   // Renders a camber-table metric as two aligned columns: the OCR'd value, then its own
   // "Tgt" column with the interpolated target (or — when there's nothing to compare against).
-  function camberCellsHtml(scan, height, metricKey, value) {
+  // box: optional {first, last, bottom, color} — draws part of the boxed border that groups
+  // this whole sail's column block together, so it's obvious at a glance which columns are
+  // "sail 1" vs "sail 2" in a wide multi-sail comparison.
+  function camberCellsHtml(scan, height, metricKey, value, box) {
     var valText = (value === null || value === undefined) ? "—" : value;
     var t = (value === null || value === undefined) ? null : getTarget(scan, height, metricKey);
     var tText = t === null ? "—" : t;
-    return "<td>" + valText + "</td><td class='target-col'>" + tText + "</td>";
+    var cls1 = [], cls2 = ["target-col"];
+    var style = box && box.color ? " style='border-color:" + box.color + ";'" : "";
+    if (box && box.first) cls1.push("sail-box-start");
+    if (box && box.last) cls2.push("sail-box-end");
+    if (box && box.bottom) { cls1.push("sail-box-bottom"); cls2.push("sail-box-bottom"); }
+    var attr1 = cls1.length ? " class='" + cls1.join(" ") + "'" : "";
+    return "<td" + attr1 + style + ">" + valText + "</td><td class='" + cls2.join(" ") + "'" + style + ">" + tText + "</td>";
   }
 
   // Two-row sub-header for a metric's value + Tgt columns.
-  function camberMetricHeadHtml(label) {
-    return "<th colspan='2'>" + label + "</th>";
+  function camberMetricHeadHtml(label, box) {
+    var cls = [];
+    if (box && box.first) cls.push("sail-box-start");
+    if (box && box.last) cls.push("sail-box-end");
+    var attr = cls.length ? " class='" + cls.join(" ") + "'" : "";
+    var style = box && box.color ? " style='border-color:" + box.color + ";'" : "";
+    return "<th colspan='2'" + attr + style + ">" + label + "</th>";
   }
-  function camberMetricSubheadHtml() {
-    return "<th></th><th class='target-col'>Tgt</th>";
+  function camberMetricSubheadHtml(box) {
+    var cls1 = box && box.first ? " class='sail-box-start'" : "";
+    var cls2 = "target-col" + (box && box.last ? " sail-box-end" : "");
+    var style = box && box.color ? " style='border-color:" + box.color + ";'" : "";
+    return "<th" + cls1 + style + "></th><th class='" + cls2 + "'" + style + ">Tgt</th>";
   }
 
   // A short label for a compare column header — boat name, plus the time when more than one
@@ -636,20 +653,32 @@ import {
     var camberHtml = "";
     if (slots.some(function (b) { return b.scan.camber && b.scan.camber.length; })) {
       var headRow1 = "<th rowspan='3'>Height</th>" + slots.map(function (b) {
-        return "<th colspan='" + (CAMBER_METRICS.length * 2) + "'>" + slotHeaderLabel(b, slots) + "</th>";
+        var color = slotColor(b.index);
+        return "<th colspan='" + (CAMBER_METRICS.length * 2) + "' class='sail-box-start sail-box-end sail-box-top' style='border-color:" + color + ";'>" + slotHeaderLabel(b, slots) + "</th>";
       }).join("");
-      var headRow2 = slots.map(function () {
-        return CAMBER_METRICS.map(function (m) { return camberMetricHeadHtml(m[1]); }).join("");
+      var headRow2 = slots.map(function (b) {
+        var color = slotColor(b.index);
+        return CAMBER_METRICS.map(function (m, mIdx) {
+          var box = { first: mIdx === 0, last: mIdx === CAMBER_METRICS.length - 1, color: color };
+          return camberMetricHeadHtml(m[1], box);
+        }).join("");
       }).join("");
-      var headRow3 = slots.map(function () {
-        return CAMBER_METRICS.map(function () { return camberMetricSubheadHtml(); }).join("");
+      var headRow3 = slots.map(function (b) {
+        var color = slotColor(b.index);
+        return CAMBER_METRICS.map(function (m, mIdx) {
+          var box = { first: mIdx === 0, last: mIdx === CAMBER_METRICS.length - 1, color: color };
+          return camberMetricSubheadHtml(box);
+        }).join("");
       }).join("");
-      var bodyRows = CAMBER_HEIGHTS.map(function (h) {
+      var bodyRows = CAMBER_HEIGHTS.map(function (h, hIdx) {
+        var isLastRow = hIdx === CAMBER_HEIGHTS.length - 1;
         var rowCells = slots.map(function (b) {
+          var color = slotColor(b.index);
           var row = (b.scan.camber || []).filter(function (r) { return r.height === h; })[0];
-          return CAMBER_METRICS.map(function (m) {
+          return CAMBER_METRICS.map(function (m, mIdx) {
             var v = row ? row[m[0]] : null;
-            return camberCellsHtml(b.scan, h, m[0], v);
+            var box = { first: mIdx === 0, last: mIdx === CAMBER_METRICS.length - 1, bottom: isLastRow, color: color };
+            return camberCellsHtml(b.scan, h, m[0], v, box);
           }).join("");
         }).join("");
         return "<tr><td>" + h + "%</td>" + rowCells + "</tr>";
