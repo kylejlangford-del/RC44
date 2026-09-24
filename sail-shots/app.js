@@ -380,7 +380,7 @@ import {
       var dotClass = s.boat === "gemera" ? "boat-dot--gemera" : "boat-dot--artemis";
       card.innerHTML =
         "<span class='boat-dot " + dotClass + "' style='position:absolute; top:6px; left:6px; z-index:2;'></span>" +
-        "<img src='" + s.file + "' alt=''><span>" + scanCaption(s) + "</span>" +
+        "<img src='" + s.file + "' alt='' draggable='false'><span>" + scanCaption(s) + "</span>" +
         "<button type='button' class='thumb__edit' title='Edit this scan'>&#9998;</button>";
       card.addEventListener("dragstart", function (e) {
         e.dataTransfer.setData("text/plain", s.id);
@@ -1347,6 +1347,7 @@ import {
     var img = document.createElement("img");
     img.src = src;
     img.className = "cal-image";
+    img.draggable = false; // don't let the browser's native image drag steal clicks/drags meant for the calibrator
     stage.appendChild(img);
 
     var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -1920,6 +1921,7 @@ import {
     var img = document.createElement("img");
     img.src = src;
     img.className = "cal-image";
+    img.draggable = false; // don't let the browser's native image drag steal clicks/drags meant for the calibrator
     stage.appendChild(img);
     var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "cal-svg");
@@ -2161,6 +2163,7 @@ import {
     var img = document.createElement("img");
     img.src = src;
     img.className = "cal-image";
+    img.draggable = false; // don't let the browser's native image drag steal clicks/drags meant for the calibrator
     stage.appendChild(img);
     var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "cal-svg");
