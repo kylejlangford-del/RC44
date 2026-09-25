@@ -72,10 +72,10 @@
     html += '<div class="legend-row" style="margin:14px 0 8px;">' +
       '<span class="legend-item"><span class="boat-dot boat-dot--gemera"></span> Gemera</span>' +
       '<span class="legend-item"><span class="boat-dot boat-dot--artemis"></span> Artemis</span>' +
-      '<span class="legend-item"><span class="legend-dot legend-dot--target"></span> Target (best BSP per bin)</span>' +
+      '<span class="legend-item"><span class="legend-dot legend-dot--target"></span> Target (avg of top phases per bin)</span>' +
       "</div>";
 
-    html += '<p class="import-step__hint" style="margin:2px 0 18px;">Scroll to zoom, drag to pan, double-click to reset. TWA and AWA are normalised (absolute value, port/starboard folded together).</p>';
+    html += '<p class="import-step__hint" style="margin:2px 0 18px;">Scroll to zoom (capped to the full data range), drag to pan, double-click to reset. TWA and AWA are normalised (absolute value, port/starboard folded together).</p>';
 
     html += '<div class="chart-grid chart-grid--big">';
     html += chartBox("bsp-" + mode, "Boat speed vs true wind speed", "BSP (kt)");
@@ -92,6 +92,11 @@
       '(Njord’s own BSP% column — only slow outliers are excluded, fast segments are ' +
       'kept) and hold <b>TWA within a ±6° band</b> across the window. Gybes, tacks and ' +
       'maneuvers are excluded by construction.<br><br>';
+    html += '<b>Targets:</b> the target line for each wind-speed bin is the <b>average of the ' +
+      'fastest ~20% of phases</b> in that bin (minimum 3), not a single best phase — a lone ' +
+      'outlier segment (a moment where TWS is over-reading, say) would otherwise set the whole ' +
+      'target. TWA and AWA are averaged as absolute values so port and starboard tacks don’t ' +
+      'cancel out.<br><br>';
     html += '<b>Coverage:</b> Lanzarote 2026-1 (all race days, both boats) and Sardinia RC44 ' +
       '2026-2 (all days for Gemera; Artemis recovered for Apr 26 only) are complete at this ' +
       'resolution — <b>' + stats.total + ' phases</b> total. Marstrand, Cowes, the ' +
@@ -269,17 +274,25 @@
     }
     function round1(v) { return Math.round(v * 10) / 10; }
 
+    function clampAxis(domain, base) {
+      var minSpan = (base[1] - base[0]) * 0.03;
+      var maxSpan = base[1] - base[0];
+      var span = domain[1] - domain[0];
+      var center = (domain[0] + domain[1]) / 2;
+      if (span < minSpan) span = minSpan;
+      if (span > maxSpan) span = maxSpan; // never zoom out past the full data range
+      var lo = center - span / 2, hi = center + span / 2;
+      // keep the visible window inside the base range
+      if (lo < base[0]) { hi += base[0] - lo; lo = base[0]; }
+      if (hi > base[1]) { lo -= hi - base[1]; hi = base[1]; }
+      lo = Math.max(lo, base[0]);
+      hi = Math.min(hi, base[1]);
+      return [lo, hi];
+    }
+
     function clampDomain() {
-      var minSpanX = (baseXDomain[1] - baseXDomain[0]) * 0.03;
-      if (xDomain[1] - xDomain[0] < minSpanX) {
-        var cx = (xDomain[0] + xDomain[1]) / 2;
-        xDomain = [cx - minSpanX / 2, cx + minSpanX / 2];
-      }
-      var minSpanY = (baseYDomain[1] - baseYDomain[0]) * 0.03;
-      if (yDomain[1] - yDomain[0] < minSpanY) {
-        var cy = (yDomain[0] + yDomain[1]) / 2;
-        yDomain = [cy - minSpanY / 2, cy + minSpanY / 2];
-      }
+      xDomain = clampAxis(xDomain, baseXDomain);
+      yDomain = clampAxis(yDomain, baseYDomain);
     }
 
     svg.addEventListener("wheel", function (evt) {
@@ -311,6 +324,7 @@
       var dyData = dyPx / plotH * (domainStart.y[1] - domainStart.y[0]);
       xDomain = [domainStart.x[0] - dxData, domainStart.x[1] - dxData];
       yDomain = [domainStart.y[0] + dyData, domainStart.y[1] + dyData];
+      clampDomain();
       draw();
     });
     window.addEventListener("mouseup", function () {

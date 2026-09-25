@@ -2109,7 +2109,8 @@ select:focus, input:focus, textarea:focus {
 .compare-table--condensed td { padding: 7px 10px; font-size: .84rem; }
 .compare-table--condensed td:first-child { font-weight: 600; color: var(--text); }
 
-.chart-grid--big { grid-template-columns: 1fr; }
+.chart-grid--big { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 980px) { .chart-grid--big { grid-template-columns: 1fr; } }
 .chart-grid--big .chart-box svg { cursor: grab; touch-action: none; user-select: none; }
 
 .crosshair-line { stroke: var(--accent-2); stroke-width: 1; stroke-dasharray: 4 3; opacity: .8; pointer-events: none; }
