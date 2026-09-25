@@ -141,15 +141,21 @@
       'into 10-second tumbling windows (minimum 8 valid 1Hz samples). Point of sail is classified ' +
       'per-second from true wind angle: <b>|TWA| &gt; 100°</b> is downwind, <b>|TWA| &lt; 75°</b> ' +
       'is upwind, and the 75–100° reaching/transition band is excluded, since the local logs carry ' +
-      'no race-leg boundary metadata. Every segment must average <b>≥70% of target boat speed</b> ' +
-      '(the H5000’s own Polar Performance % column, selectable as the chart x-axis as VMG%) and hold <b>TWA within a ' +
-      '±6° band</b> across the window, so gybes, tacks and maneuvers are excluded by construction. ' +
-      'Phases below <b>5kt true wind speed</b> are excluded — too few, noisy samples at that end.<br><br>';
+      'no race-leg boundary metadata. Every segment must average between <b>70% and 130% of ' +
+      'target boat speed</b> (the H5000’s own Polar Performance % column, selectable as the chart ' +
+      'x-axis as VMG%) and hold <b>TWA within a ±6° band</b> across the window, so gybes, tacks ' +
+      'and maneuvers are excluded by construction. Phases below <b>5kt true wind speed</b> are ' +
+      'excluded — too few, noisy samples at that end.<br><br>';
+    html += '<b>Why cap Polar Performance % at 130%:</b> without an upper cap, phases where the ' +
+      'TWS sensor briefly under-read (inflating Polar Performance % past 150–200%+) were getting ' +
+      'preferentially selected by the target logic below, since they show unusually high boat ' +
+      'speed for their recorded wind speed — producing unrealistic targets. Capping removes ' +
+      'roughly 13–15% of phases as likely sensor noise before targets are computed.<br><br>';
     html += '<b>Targets:</b> the target line for each wind-speed bin is the <b>average of the ' +
-      'fastest ~20% of phases</b> in that bin (minimum 3), not a single best phase — a lone ' +
-      'outlier segment (a moment where TWS is over-reading, say) would otherwise set the whole ' +
-      'target. TWA, AWA, Heel' + (showExtra ? ', Rudder and Trim Tab are' : ' are') + ' averaged as ' +
-      'absolute values so port and starboard tacks don’t cancel out' +
+      'fastest ~20% of phases</b> in that (now cleaned) bin (minimum 3), not a single best phase — ' +
+      'a lone outlier segment would otherwise set the whole target. TWA, AWA, Heel' +
+      (showExtra ? ', Rudder and Trim Tab are' : ' are') + ' averaged as absolute values so port and ' +
+      'starboard tacks don’t cancel out' +
       (showExtra ? '; Inner Forestay Load is already unsigned and not present on every boat-day, ' +
         'so that column/chart reflects whichever phases have it' : '') + '. The <b>Boats</b> filter ' +
       'above recomputes the targets from scratch for the selected boat(s) — it doesn’t just hide ' +
