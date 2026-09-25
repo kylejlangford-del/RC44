@@ -2101,3 +2101,17 @@ select:focus, input:focus, textarea:focus {
 .legend-row .legend-item { display: flex; align-items: center; gap: 6px; }
 .legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 .legend-dot--target { background: var(--accent); border: 1px solid rgba(0,0,0,.4); }
+
+/* ---------- Targets tool v2: condensed table, bigger zoomable charts ---------- */
+.targets-h2 { margin: 26px 0 12px; font-size: 1.05rem; font-weight: 600; }
+
+.compare-table--condensed th,
+.compare-table--condensed td { padding: 7px 10px; font-size: .84rem; }
+.compare-table--condensed td:first-child { font-weight: 600; color: var(--text); }
+
+.chart-grid--big { grid-template-columns: 1fr; }
+.chart-grid--big .chart-box svg { cursor: grab; touch-action: none; user-select: none; }
+
+.crosshair-line { stroke: var(--accent-2); stroke-width: 1; stroke-dasharray: 4 3; opacity: .8; pointer-events: none; }
+.crosshair-label-bg { fill: rgba(7,17,29,.92); stroke: var(--line-strong); stroke-width: 1; pointer-events: none; }
+.crosshair-label { fill: var(--text); font-size: 11px; font-family: Inter, sans-serif; pointer-events: none; }
