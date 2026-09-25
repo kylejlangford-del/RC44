@@ -2116,3 +2116,7 @@ select:focus, input:focus, textarea:focus {
 .crosshair-line { stroke: var(--accent-2); stroke-width: 1; stroke-dasharray: 4 3; opacity: .8; pointer-events: none; }
 .crosshair-label-bg { fill: rgba(7,17,29,.92); stroke: var(--line-strong); stroke-width: 1; pointer-events: none; }
 .crosshair-label { fill: var(--text); font-size: 11px; font-family: Inter, sans-serif; pointer-events: none; }
+
+/* ---------- Targets tool v3: local B&G data, extra metrics (rudder/trim tab/forestay) ---------- */
+.table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll .compare-table { min-width: 760px; }

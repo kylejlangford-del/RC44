@@ -28,17 +28,18 @@
     var label = mode === "upwind" ? "Upwind" : "Downwind";
     body.innerHTML =
       '<div class="note-box note-box--pending">' +
-      '<b>' + label + ' targets aren’t built yet.</b> This tool currently covers downwind ' +
-      'legs only — upwind needs the same pass over Njord’s raw telemetry (matching to ' +
-      'upwind race legs, the same BSP% and TWA-stability filters, plus trim tab angle, inner ' +
-      'forestay load and rudder angle, both boats, every event) which hasn’t been run yet.' +
-      '</div>';
+      '<b>' + label + ' targets aren’t built yet.</b></div>';
   }
 
   function binLabel(t) {
     var lower = parseInt(String(t.bin).split("-")[0], 10);
     if (isNaN(lower)) lower = Math.floor(t.avgTWS);
     return lower + " knots";
+  }
+
+  function fmt(v, unit) {
+    if (v === null || v === undefined) return "–";
+    return v + (unit || "");
   }
 
   function renderTargets(mode, data) {
@@ -57,17 +58,17 @@
     html += "</div>";
 
     html += '<h2 class="targets-h2">Targets by wind speed</h2>';
+    html += '<div class="table-scroll">';
     html += '<table class="compare-table compare-table--tgt compare-table--condensed">';
     html += "<thead><tr><th>Wind</th><th>n</th><th>BSP</th>" +
-      "<th>TWA</th><th>Heel</th><th>AWA</th><th>Best</th></tr></thead><tbody>";
+      "<th>TWA</th><th>Heel</th><th>AWA</th><th>Rudder</th><th>Trim Tab</th><th>Forestay</th><th>Best</th></tr></thead><tbody>";
     targets.forEach(function (t) {
-      var twaAbs = Math.abs(t.twa).toFixed(1);
-      var awaAbs = Math.abs(t.awa).toFixed(1);
       html += "<tr><td>" + binLabel(t) + "</td><td>" + t.n + "</td>" +
-        "<td>" + t.bsp + "</td><td>" + twaAbs + "°</td><td>" + t.heel + "°</td><td>" + awaAbs + "°</td>" +
+        "<td>" + fmt(t.bsp) + "</td><td>" + fmt(t.twa, "°") + "</td><td>" + fmt(t.heel, "°") + "</td><td>" + fmt(t.awa, "°") + "</td>" +
+        "<td>" + fmt(t.rudder, "°") + "</td><td>" + fmt(t.trimtab, "°") + "</td><td>" + fmt(t.forestay) + "</td>" +
         '<td><span class="boat-dot boat-dot--' + t.boat.toLowerCase() + '" style="vertical-align:middle; margin-right:5px;"></span>' + t.boat + "</td></tr>";
     });
-    html += "</tbody></table>";
+    html += "</tbody></table></div>";
 
     html += '<div class="legend-row" style="margin:14px 0 8px;">' +
       '<span class="legend-item"><span class="boat-dot boat-dot--gemera"></span> Gemera</span>' +
@@ -75,50 +76,79 @@
       '<span class="legend-item"><span class="legend-dot legend-dot--target"></span> Target (avg of top phases per bin)</span>' +
       "</div>";
 
-    html += '<p class="import-step__hint" style="margin:2px 0 18px;">Scroll to zoom (capped to the full data range), drag to pan, double-click to reset. TWA and AWA are normalised (absolute value, port/starboard folded together).</p>';
+    html += '<p class="import-step__hint" style="margin:2px 0 18px;">Scroll to zoom (capped to the full data range), drag to pan, double-click to reset. TWA, AWA, Heel, Rudder and Trim Tab are normalised (absolute value, port/starboard folded together).</p>';
 
     html += '<div class="chart-grid chart-grid--big">';
     html += chartBox("bsp-" + mode, "Boat speed vs true wind speed", "BSP (kt)");
     html += chartBox("twa-" + mode, "True wind angle vs true wind speed (normalised)", "|TWA| (°)");
-    html += chartBox("heel-" + mode, "Heel vs true wind speed", "Heel (°)");
+    html += chartBox("heel-" + mode, "Heel vs true wind speed (normalised)", "|Heel| (°)");
     html += chartBox("awa-" + mode, "Apparent wind angle vs true wind speed (normalised)", "|AWA| (°)");
+    html += chartBox("rudder-" + mode, "Rudder angle vs true wind speed (normalised)", "|Rudder| (°)");
+    html += chartBox("trimtab-" + mode, "Trim tab angle vs true wind speed (normalised)", "|Trim Tab| (°)");
+    html += chartBox("forestay-" + mode, "Inner forestay load vs true wind speed", "Forestay");
     html += "</div>";
 
     html += '<h2 class="targets-h2" style="margin-top:36px;">Methodology</h2>';
     html += '<div class="note-box">';
-    html += '<b>Building a phase:</b> each point is a true <b>10-second segment</b> from Njord’s ' +
-      'raw ~10Hz telemetry, matched to ' + mode + ' race legs via Njord’s own per-race ' +
-      'classification. Every segment must average <b>≥70% of target boat speed</b> ' +
-      '(Njord’s own BSP% column — only slow outliers are excluded, fast segments are ' +
-      'kept) and hold <b>TWA within a ±6° band</b> across the window. Gybes, tacks and ' +
-      'maneuvers are excluded by construction.<br><br>';
+    html += '<b>Building a phase:</b> each point is a true <b>10-second segment</b>, built by ' +
+      'downsampling the boat’s own B&amp;G H5000 CSV telemetry export logs to 1Hz and grouping ' +
+      'into 10-second tumbling windows (minimum 8 valid 1Hz samples). Point of sail is classified ' +
+      'per-second from true wind angle: <b>|TWA| &gt; 100°</b> is downwind, <b>|TWA| &lt; 75°</b> ' +
+      'is upwind, and the 75–100° reaching/transition band is excluded, since the local logs carry ' +
+      'no race-leg boundary metadata. Every segment must average <b>≥70% of target boat speed</b> ' +
+      '(the H5000’s own Polar Performance % column) and hold <b>TWA within a ±6° band</b> across ' +
+      'the window, so gybes, tacks and maneuvers are excluded by construction.<br><br>';
     html += '<b>Targets:</b> the target line for each wind-speed bin is the <b>average of the ' +
       'fastest ~20% of phases</b> in that bin (minimum 3), not a single best phase — a lone ' +
       'outlier segment (a moment where TWS is over-reading, say) would otherwise set the whole ' +
-      'target. TWA and AWA are averaged as absolute values so port and starboard tacks don’t ' +
-      'cancel out.<br><br>';
-    html += '<b>Coverage:</b> Lanzarote 2026-1 (all race days, both boats) and Sardinia RC44 ' +
-      '2026-2 (all days for Gemera; Artemis recovered for Apr 26 only) are complete at this ' +
-      'resolution — <b>' + stats.total + ' phases</b> total. Marstrand, Cowes, the ' +
-      'remaining Sardinia/Artemis days (Apr 21–25), and the trim tab angle / inner ' +
-      'forestay load / rudder angle columns are pending a sustained outage on Njord’s ' +
-      'raw-telemetry CDN (index files succeed; the metric data itself 503s) — this tool ' +
-      'will pick them up once that clears and it’s re-run.<br><br>';
-    html += '<i>The scatter charts above plot a 1-in-4 sample of segments for display; the ' +
+      'target. TWA, AWA, Heel, Rudder and Trim Tab are averaged as absolute values so port and ' +
+      'starboard tacks don’t cancel out; Inner Forestay Load is already unsigned. Forestay load ' +
+      'readings aren’t present on every boat-day, so that column/chart reflects whichever phases ' +
+      'have it.<br><br>';
+    html += '<b>Coverage:</b> both boats, all four events this season — Lanzarote, Sardinia, ' +
+      'Marstrand and Cowes — processed entirely from local telemetry logs rather than Njord’s ' +
+      'CDN (which has been affected by a sustained outage on the raw metric data). <b>' +
+      stats.total + ' ' + mode + ' phases</b> total across the season.<br><br>';
+    html += '<i>The scatter charts above plot a representative sample of segments for display; the ' +
       'target table and phase counts reflect the complete filtered dataset.</i>';
     html += "</div>";
 
     body.innerHTML = html;
 
-    var twaVals = points.map(function (p) { return Math.abs(p[3]); }).concat(targets.map(function (t) { return Math.abs(t.twa); }));
-    var awaVals = points.map(function (p) { return Math.abs(p[5]); }).concat(targets.map(function (t) { return Math.abs(t.awa); }));
-    var bspVals = points.map(function (p) { return p[2]; }).concat(targets.map(function (t) { return t.bsp; }));
-    var heelVals = points.map(function (p) { return p[4]; }).concat(targets.map(function (t) { return t.heel; }));
+    var xPad = (stats.tws_max - stats.tws_min) * 0.05 || 1;
+    var baseX = [Math.max(0, stats.tws_min - xPad), stats.tws_max + xPad];
 
-    initChart("bsp-" + mode, points, targets, 2, "bsp", niceDomain(bspVals), false);
-    initChart("twa-" + mode, points, targets, 3, "twa", niceDomain(twaVals), true);
-    initChart("heel-" + mode, points, targets, 4, "heel", niceDomain(heelVals), false);
-    initChart("awa-" + mode, points, targets, 5, "awa", niceDomain(awaVals), true);
+    var twaVals = collect(points, targets, 3, "twa", true);
+    var awaVals = collect(points, targets, 5, "awa", true);
+    var bspVals = collect(points, targets, 2, "bsp", false);
+    var heelVals = collect(points, targets, 4, "heel", true);
+    var rudderVals = collect(points, targets, 6, "rudder", true);
+    var trimtabVals = collect(points, targets, 7, "trimtab", true);
+    var forestayVals = collect(points, targets, 8, "forestay", false);
+
+    initChart("bsp-" + mode, points, targets, 2, "bsp", niceDomain(bspVals), false, baseX);
+    initChart("twa-" + mode, points, targets, 3, "twa", niceDomain(twaVals), true, baseX);
+    initChart("heel-" + mode, points, targets, 4, "heel", niceDomain(heelVals), true, baseX);
+    initChart("awa-" + mode, points, targets, 5, "awa", niceDomain(awaVals), true, baseX);
+    initChart("rudder-" + mode, points, targets, 6, "rudder", niceDomain(rudderVals), true, baseX);
+    initChart("trimtab-" + mode, points, targets, 7, "trimtab", niceDomain(trimtabVals), true, baseX);
+    initChart("forestay-" + mode, points, targets, 8, "forestay", niceDomain(forestayVals), false, baseX);
+  }
+
+  function collect(points, targets, idx, key, abs) {
+    var out = [];
+    points.forEach(function (p) {
+      var v = p[idx];
+      if (v === null || v === undefined) return;
+      out.push(abs ? Math.abs(v) : v);
+    });
+    targets.forEach(function (t) {
+      var v = t[key];
+      if (v === null || v === undefined) return;
+      out.push(abs ? Math.abs(v) : v);
+    });
+    if (!out.length) out = [0, 1];
+    return out;
   }
 
   function statCard(n, label, extraClass) {
@@ -146,14 +176,14 @@
   }
 
   // Zoomable/pannable chart with crosshairs. yIndex/targetKey pick the metric;
-  // normalise=true takes abs() of that metric (used for TWA/AWA).
-  function initChart(id, points, targets, yIndex, targetKey, baseYDomain, normalise) {
+  // normalise=true takes abs() of that metric (used for TWA/AWA/Heel/Rudder/TrimTab).
+  // Null/undefined values (e.g. missing forestay readings) are skipped.
+  function initChart(id, points, targets, yIndex, targetKey, baseYDomain, normalise, baseXDomain) {
     var svg = document.getElementById("chart-" + id);
     if (!svg) return;
-    var W = 960, H = 480, M = { l: 52, r: 16, t: 14, b: 40 };
+    var W = 960, H = 480, M = { l: 56, r: 16, t: 14, b: 40 };
     var plotW = W - M.l - M.r, plotH = H - M.t - M.b;
 
-    var baseXDomain = [3, 24];
     var xDomain = baseXDomain.slice();
     var yDomain = baseYDomain.slice();
 
@@ -203,9 +233,11 @@
 
       var dataLayer = el("g", { "clip-path": "url(#" + clipId + ")" });
       points.forEach(function (p) {
+        var raw = p[yIndex];
+        if (raw === null || raw === undefined) return;
         var boat = p[0];
         var tws = p[1];
-        var v = val(p[yIndex]);
+        var v = val(raw);
         dataLayer.appendChild(el("circle", {
           cx: xPos(tws), cy: yPos(v), r: 2.6,
           fill: boat === 0 ? "var(--gemera)" : "var(--artemis)",
@@ -213,8 +245,10 @@
         }));
       });
       targets.forEach(function (t) {
+        var raw = t[targetKey];
+        if (raw === null || raw === undefined) return;
         dataLayer.appendChild(el("circle", {
-          cx: xPos(t.avgTWS), cy: yPos(val(t[targetKey])), r: 5,
+          cx: xPos(t.avgTWS), cy: yPos(val(raw)), r: 5,
           fill: "var(--accent)", stroke: "#00000066", "stroke-width": 1
         }));
       });
