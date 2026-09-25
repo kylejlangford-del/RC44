@@ -47,7 +47,7 @@
   // X-axis metric definitions: which point/target field to use, label, unit,
   // and whether to draw a linear best-fit line through the scatter data.
   var X_METRICS = {
-    tws: { pointIdx: 1, targetKey: "avgTWS", label: "True Wind Speed (kt)", unit: " kt", statLo: "tws_min", statHi: "tws_max", fitLine: false },
+    tws: { pointIdx: 1, targetKey: "avgTWS", label: "True Wind Speed (kt)", unit: " kt", statLo: "tws_min", statHi: "tws_max", fitLine: true },
     vmg: { pointIdx: 9, targetKey: "vmgPct", label: "VMG % (Polar Performance)", unit: "%", statLo: "vmg_min", statHi: "vmg_max", fitLine: true }
   };
 
