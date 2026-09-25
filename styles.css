@@ -2055,3 +2055,49 @@ select:focus, input:focus, textarea:focus {
   .xover-track { flex-basis: 100%; }
   .xover-ruler-row__spacer { display: none; }
 }
+
+/* ---------- Targets tool: point-of-sail targets (upwind/downwind) ---------- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+}
+.stat-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(160deg, rgba(16,35,52,.72), rgba(8,18,30,.85)), var(--panel);
+  padding: 14px 16px;
+}
+.stat-card .stat-n { font-size: 1.4rem; font-weight: 700; }
+.stat-card .stat-l { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
+.stat-card--artemis .stat-n { color: var(--artemis); }
+.stat-card--gemera .stat-n { color: var(--gemera); }
+
+.note-box {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: .85rem;
+  color: var(--muted-2);
+  line-height: 1.55;
+  margin-bottom: 22px;
+}
+.note-box b { color: var(--text); }
+.note-box.note-box--pending { border-left-color: var(--gemera); }
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+  gap: 18px;
+}
+.chart-box h3 { margin: 0 0 10px; font-size: .92rem; font-weight: 600; color: var(--text); }
+.chart-box svg { width: 100%; height: auto; display: block; }
+.chart-axis-label { fill: var(--muted); font-size: 10px; font-family: Inter, sans-serif; }
+.chart-grid-line { stroke: var(--line); stroke-width: 1; }
+
+.legend-row { display: flex; gap: 18px; align-items: center; font-size: .82rem; color: var(--muted-2); flex-wrap: wrap; }
+.legend-row .legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.legend-dot--target { background: var(--accent); border: 1px solid rgba(0,0,0,.4); }
