@@ -1,6 +1,6 @@
 # RC44 — Artemis & Gemera
 
-Browser-based tools for the RC44 team, under the Seagull Lab banner. Static site, served via GitHub Pages from the repo root.
+Browser-based tools for the RC44 team, under the Seagull Data banner. Static site, served via GitHub Pages from the repo root.
 
 ## Tools
 
