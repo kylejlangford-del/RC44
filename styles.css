@@ -2111,7 +2111,8 @@ select:focus, input:focus, textarea:focus {
 
 .chart-grid--big { grid-template-columns: repeat(2, 1fr); }
 @media (max-width: 980px) { .chart-grid--big { grid-template-columns: 1fr; } }
-.chart-grid--big .chart-box svg { cursor: grab; touch-action: none; user-select: none; }
+.chart-grid--big .chart-box svg { cursor: crosshair; touch-action: none; user-select: none; }
+.zoom-select-box { fill: rgba(71, 231, 219, 0.14); stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
 
 .crosshair-line { stroke: var(--accent-2); stroke-width: 1; stroke-dasharray: 4 3; opacity: .8; pointer-events: none; }
 .crosshair-label-bg { fill: rgba(7,17,29,.92); stroke: var(--line-strong); stroke-width: 1; pointer-events: none; }

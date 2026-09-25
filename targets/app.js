@@ -85,7 +85,7 @@
       '<span class="legend-item"><span class="legend-dot legend-dot--target"></span> Target (avg of top phases per bin)</span>' +
       "</div>";
 
-    html += '<p class="import-step__hint" style="margin:2px 0 18px;">Scroll to zoom (capped to the full data range), drag to pan, double-click to reset. TWA, AWA, Heel' +
+    html += '<p class="import-step__hint" style="margin:2px 0 18px;">Click and drag to draw a box around an area and zoom into it, scroll to zoom (both capped to the full data range), double-click to reset. TWA, AWA, Heel' +
       (showExtra ? ', Rudder and Trim Tab are' : ' are') + ' normalised (absolute value, port/starboard folded together).</p>';
 
     html += '<div class="chart-grid chart-grid--big">';
@@ -387,27 +387,56 @@
       draw();
     }, { passive: false });
 
-    var isDragging = false, dragStart = null, domainStart = null;
+    // Click-and-drag draws a selection box; releasing zooms to that box.
+    // Double-click resets to the full data range.
+    var isSelecting = false, selStartPx = null, selBox = null;
+
+    function toSvgPoint(evt) {
+      var rect = svg.getBoundingClientRect();
+      var sx = (evt.clientX - rect.left) / rect.width * W;
+      var sy = (evt.clientY - rect.top) / rect.height * H;
+      return { x: sx, y: sy };
+    }
+    function clampToPlot(p) {
+      return {
+        x: Math.min(Math.max(p.x, M.l), M.l + plotW),
+        y: Math.min(Math.max(p.y, M.t), M.t + plotH)
+      };
+    }
+
     svg.addEventListener("mousedown", function (evt) {
-      isDragging = true;
-      dragStart = { x: evt.clientX, y: evt.clientY };
-      domainStart = { x: xDomain.slice(), y: yDomain.slice() };
-      svg.style.cursor = "grabbing";
+      var p = clampToPlot(toSvgPoint(evt));
+      isSelecting = true;
+      selStartPx = p;
+      if (selBox) { svg.removeChild(selBox); selBox = null; }
+      selBox = el("rect", { class: "zoom-select-box", x: p.x, y: p.y, width: 0, height: 0 });
+      svg.appendChild(selBox);
     });
     window.addEventListener("mousemove", function (evt) {
-      if (!isDragging) return;
-      var rect = svg.getBoundingClientRect();
-      var dxPx = (evt.clientX - dragStart.x) / rect.width * W;
-      var dyPx = (evt.clientY - dragStart.y) / rect.height * H;
-      var dxData = dxPx / plotW * (domainStart.x[1] - domainStart.x[0]);
-      var dyData = dyPx / plotH * (domainStart.y[1] - domainStart.y[0]);
-      xDomain = [domainStart.x[0] - dxData, domainStart.x[1] - dxData];
-      yDomain = [domainStart.y[0] + dyData, domainStart.y[1] + dyData];
+      if (!isSelecting || !selBox) return;
+      var p = clampToPlot(toSvgPoint(evt));
+      var x = Math.min(p.x, selStartPx.x), y = Math.min(p.y, selStartPx.y);
+      var w = Math.abs(p.x - selStartPx.x), h = Math.abs(p.y - selStartPx.y);
+      selBox.setAttribute("x", x);
+      selBox.setAttribute("y", y);
+      selBox.setAttribute("width", w);
+      selBox.setAttribute("height", h);
+    });
+    window.addEventListener("mouseup", function (evt) {
+      if (!isSelecting) return;
+      isSelecting = false;
+      var p = clampToPlot(toSvgPoint(evt));
+      var wPx = Math.abs(p.x - selStartPx.x), hPx = Math.abs(p.y - selStartPx.y);
+      if (selBox) { svg.removeChild(selBox); selBox = null; }
+      if (wPx < 8 || hPx < 8) return; // too small to count as a drag-select
+      var x0 = Math.min(p.x, selStartPx.x), x1 = Math.max(p.x, selStartPx.x);
+      var y0 = Math.min(p.y, selStartPx.y), y1 = Math.max(p.y, selStartPx.y);
+      var dataX0 = xInv(x0), dataX1 = xInv(x1);
+      var dataY0 = yInv(y1), dataY1 = yInv(y0); // y is inverted (screen down = data down)
+      xDomain = [dataX0, dataX1];
+      yDomain = [dataY0, dataY1];
       clampDomain();
       draw();
-    });
-    window.addEventListener("mouseup", function () {
-      if (isDragging) { isDragging = false; svg.style.cursor = ""; }
     });
     svg.addEventListener("dblclick", function () {
       xDomain = baseXDomain.slice();
@@ -415,7 +444,7 @@
       draw();
     });
 
-    svg.style.cursor = "grab";
+    svg.style.cursor = "crosshair";
     draw();
   }
 
