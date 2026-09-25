@@ -5,6 +5,7 @@
   var body = document.getElementById("targetsBody");
   var tabs = document.querySelectorAll("#modeTabs .boat-tab");
   var currentMode = "downwind";
+  var currentXMetric = "tws"; // "tws" | "vmg"
 
   tabs.forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -42,10 +43,23 @@
     return v + (unit || "");
   }
 
+  // X-axis metric definitions: which point/target field to use, label, unit.
+  var X_METRICS = {
+    tws: { pointIdx: 1, targetKey: "avgTWS", label: "True Wind Speed (kt)", unit: " kt", statLo: "tws_min", statHi: "tws_max" },
+    vmg: { pointIdx: 9, targetKey: "vmgPct", label: "VMG % (Polar Performance)", unit: "%", statLo: "vmg_min", statHi: "vmg_max" }
+  };
+
+  // Metrics with rudder/trimtab/forestay only shown for upwind (downwind doesn't need them).
+  function extraMetricsForMode(mode) {
+    return mode === "upwind";
+  }
+
   function renderTargets(mode, data) {
     var stats = data.stats;
     var targets = data.targets;
     var points = data.points;
+    var showExtra = extraMetricsForMode(mode);
+    var xm = X_METRICS[currentXMetric];
 
     var html = "";
 
@@ -57,36 +71,50 @@
     html += statCard(stats.tws_min + "–" + stats.tws_max, "TWS range (kt)", "");
     html += "</div>";
 
-    html += '<h2 class="targets-h2">Targets by wind speed</h2>';
-    html += '<div class="table-scroll">';
-    html += '<table class="compare-table compare-table--tgt compare-table--condensed">';
-    html += "<thead><tr><th>Wind</th><th>n</th><th>BSP</th>" +
-      "<th>TWA</th><th>Heel</th><th>AWA</th><th>Rudder</th><th>Trim Tab</th><th>Forestay</th><th>Best</th></tr></thead><tbody>";
-    targets.forEach(function (t) {
-      html += "<tr><td>" + binLabel(t) + "</td><td>" + t.n + "</td>" +
-        "<td>" + fmt(t.bsp) + "</td><td>" + fmt(t.twa, "°") + "</td><td>" + fmt(t.heel, "°") + "</td><td>" + fmt(t.awa, "°") + "</td>" +
-        "<td>" + fmt(t.rudder, "°") + "</td><td>" + fmt(t.trimtab, "°") + "</td><td>" + fmt(t.forestay) + "</td>" +
-        '<td><span class="boat-dot boat-dot--' + t.boat.toLowerCase() + '" style="vertical-align:middle; margin-right:5px;"></span>' + t.boat + "</td></tr>";
-    });
-    html += "</tbody></table></div>";
+    html += '<div class="chart-controls" style="display:flex; align-items:center; gap:10px; margin:24px 0 6px;">';
+    html += '<label style="font-size:.82rem; color:var(--muted-2);">Chart x-axis</label>';
+    html += '<select id="xMetricSelect" class="ghost-select">';
+    html += '<option value="tws"' + (currentXMetric === "tws" ? " selected" : "") + '>True Wind Speed</option>';
+    html += '<option value="vmg"' + (currentXMetric === "vmg" ? " selected" : "") + '>VMG %</option>';
+    html += '</select>';
+    html += "</div>";
 
-    html += '<div class="legend-row" style="margin:14px 0 8px;">' +
+    html += '<div class="legend-row" style="margin:10px 0 8px;">' +
       '<span class="legend-item"><span class="boat-dot boat-dot--gemera"></span> Gemera</span>' +
       '<span class="legend-item"><span class="boat-dot boat-dot--artemis"></span> Artemis</span>' +
       '<span class="legend-item"><span class="legend-dot legend-dot--target"></span> Target (avg of top phases per bin)</span>' +
       "</div>";
 
-    html += '<p class="import-step__hint" style="margin:2px 0 18px;">Scroll to zoom (capped to the full data range), drag to pan, double-click to reset. TWA, AWA, Heel, Rudder and Trim Tab are normalised (absolute value, port/starboard folded together).</p>';
+    html += '<p class="import-step__hint" style="margin:2px 0 18px;">Scroll to zoom (capped to the full data range), drag to pan, double-click to reset. TWA, AWA, Heel' +
+      (showExtra ? ', Rudder and Trim Tab are' : ' are') + ' normalised (absolute value, port/starboard folded together).</p>';
 
     html += '<div class="chart-grid chart-grid--big">';
-    html += chartBox("bsp-" + mode, "Boat speed vs true wind speed", "BSP (kt)");
-    html += chartBox("twa-" + mode, "True wind angle vs true wind speed (normalised)", "|TWA| (°)");
-    html += chartBox("heel-" + mode, "Heel vs true wind speed (normalised)", "|Heel| (°)");
-    html += chartBox("awa-" + mode, "Apparent wind angle vs true wind speed (normalised)", "|AWA| (°)");
-    html += chartBox("rudder-" + mode, "Rudder angle vs true wind speed (normalised)", "|Rudder| (°)");
-    html += chartBox("trimtab-" + mode, "Trim tab angle vs true wind speed (normalised)", "|Trim Tab| (°)");
-    html += chartBox("forestay-" + mode, "Inner forestay load vs true wind speed", "Forestay");
+    html += chartBox("bsp-" + mode, "Boat speed vs " + xm.label.toLowerCase(), "BSP (kt)");
+    html += chartBox("twa-" + mode, "True wind angle vs " + xm.label.toLowerCase() + " (normalised)", "|TWA| (°)");
+    html += chartBox("heel-" + mode, "Heel vs " + xm.label.toLowerCase() + " (normalised)", "|Heel| (°)");
+    html += chartBox("awa-" + mode, "Apparent wind angle vs " + xm.label.toLowerCase() + " (normalised)", "|AWA| (°)");
+    if (showExtra) {
+      html += chartBox("rudder-" + mode, "Rudder angle vs " + xm.label.toLowerCase() + " (normalised)", "|Rudder| (°)");
+      html += chartBox("trimtab-" + mode, "Trim tab angle vs " + xm.label.toLowerCase() + " (normalised)", "|Trim Tab| (°)");
+      html += chartBox("forestay-" + mode, "Inner forestay load vs " + xm.label.toLowerCase(), "Forestay");
+    }
     html += "</div>";
+
+    html += '<h2 class="targets-h2" style="margin-top:32px;">Targets by wind speed</h2>';
+    html += '<div class="table-scroll">';
+    html += '<table class="compare-table compare-table--tgt compare-table--condensed">';
+    html += "<thead><tr><th>Wind</th><th>n</th><th>BSP</th>" +
+      "<th>TWA</th><th>Heel</th><th>AWA</th><th>VMG %</th>" +
+      (showExtra ? "<th>Rudder</th><th>Trim Tab</th><th>Forestay</th>" : "") +
+      "<th>Best</th></tr></thead><tbody>";
+    targets.forEach(function (t) {
+      html += "<tr><td>" + binLabel(t) + "</td><td>" + t.n + "</td>" +
+        "<td>" + fmt(t.bsp) + "</td><td>" + fmt(t.twa, "°") + "</td><td>" + fmt(t.heel, "°") + "</td><td>" + fmt(t.awa, "°") + "</td>" +
+        "<td>" + fmt(t.vmgPct, "%") + "</td>" +
+        (showExtra ? "<td>" + fmt(t.rudder, "°") + "</td><td>" + fmt(t.trimtab, "°") + "</td><td>" + fmt(t.forestay) + "</td>" : "") +
+        '<td><span class="boat-dot boat-dot--' + t.boat.toLowerCase() + '" style="vertical-align:middle; margin-right:5px;"></span>' + t.boat + "</td></tr>";
+    });
+    html += "</tbody></table></div>";
 
     html += '<h2 class="targets-h2" style="margin-top:36px;">Methodology</h2>';
     html += '<div class="note-box">';
@@ -96,15 +124,16 @@
       'per-second from true wind angle: <b>|TWA| &gt; 100°</b> is downwind, <b>|TWA| &lt; 75°</b> ' +
       'is upwind, and the 75–100° reaching/transition band is excluded, since the local logs carry ' +
       'no race-leg boundary metadata. Every segment must average <b>≥70% of target boat speed</b> ' +
-      '(the H5000’s own Polar Performance % column) and hold <b>TWA within a ±6° band</b> across ' +
-      'the window, so gybes, tacks and maneuvers are excluded by construction.<br><br>';
+      '(the H5000’s own Polar Performance % column, also shown as VMG%) and hold <b>TWA within a ' +
+      '±6° band</b> across the window, so gybes, tacks and maneuvers are excluded by construction. ' +
+      'Phases below <b>5kt true wind speed</b> are excluded — too few, noisy samples at that end.<br><br>';
     html += '<b>Targets:</b> the target line for each wind-speed bin is the <b>average of the ' +
       'fastest ~20% of phases</b> in that bin (minimum 3), not a single best phase — a lone ' +
       'outlier segment (a moment where TWS is over-reading, say) would otherwise set the whole ' +
-      'target. TWA, AWA, Heel, Rudder and Trim Tab are averaged as absolute values so port and ' +
-      'starboard tacks don’t cancel out; Inner Forestay Load is already unsigned. Forestay load ' +
-      'readings aren’t present on every boat-day, so that column/chart reflects whichever phases ' +
-      'have it.<br><br>';
+      'target. TWA, AWA, Heel' + (showExtra ? ', Rudder and Trim Tab are' : ' are') + ' averaged as ' +
+      'absolute values so port and starboard tacks don’t cancel out' +
+      (showExtra ? '; Inner Forestay Load is already unsigned and not present on every boat-day, ' +
+        'so that column/chart reflects whichever phases have it' : '') + '.<br><br>';
     html += '<b>Coverage:</b> both boats, all four events this season — Lanzarote, Sardinia, ' +
       'Marstrand and Cowes — processed entirely from local telemetry logs rather than Njord’s ' +
       'CDN (which has been affected by a sustained outage on the raw metric data). <b>' +
@@ -115,24 +144,35 @@
 
     body.innerHTML = html;
 
-    var xPad = (stats.tws_max - stats.tws_min) * 0.05 || 1;
-    var baseX = [Math.max(0, stats.tws_min - xPad), stats.tws_max + xPad];
+    var xSelect = document.getElementById("xMetricSelect");
+    if (xSelect) {
+      xSelect.addEventListener("change", function () {
+        currentXMetric = xSelect.value;
+        render();
+      });
+    }
+
+    var xPad = (stats[xm.statHi] - stats[xm.statLo]) * 0.05 || 1;
+    var baseX = [Math.max(0, stats[xm.statLo] - xPad), stats[xm.statHi] + xPad];
 
     var twaVals = collect(points, targets, 3, "twa", true);
     var awaVals = collect(points, targets, 5, "awa", true);
     var bspVals = collect(points, targets, 2, "bsp", false);
     var heelVals = collect(points, targets, 4, "heel", true);
-    var rudderVals = collect(points, targets, 6, "rudder", true);
-    var trimtabVals = collect(points, targets, 7, "trimtab", true);
-    var forestayVals = collect(points, targets, 8, "forestay", false);
 
-    initChart("bsp-" + mode, points, targets, 2, "bsp", niceDomain(bspVals), false, baseX);
-    initChart("twa-" + mode, points, targets, 3, "twa", niceDomain(twaVals), true, baseX);
-    initChart("heel-" + mode, points, targets, 4, "heel", niceDomain(heelVals), true, baseX);
-    initChart("awa-" + mode, points, targets, 5, "awa", niceDomain(awaVals), true, baseX);
-    initChart("rudder-" + mode, points, targets, 6, "rudder", niceDomain(rudderVals), true, baseX);
-    initChart("trimtab-" + mode, points, targets, 7, "trimtab", niceDomain(trimtabVals), true, baseX);
-    initChart("forestay-" + mode, points, targets, 8, "forestay", niceDomain(forestayVals), false, baseX);
+    initChart("bsp-" + mode, points, targets, 2, "bsp", niceDomain(bspVals), false, baseX, xm);
+    initChart("twa-" + mode, points, targets, 3, "twa", niceDomain(twaVals), true, baseX, xm);
+    initChart("heel-" + mode, points, targets, 4, "heel", niceDomain(heelVals), true, baseX, xm);
+    initChart("awa-" + mode, points, targets, 5, "awa", niceDomain(awaVals), true, baseX, xm);
+
+    if (showExtra) {
+      var rudderVals = collect(points, targets, 6, "rudder", true);
+      var trimtabVals = collect(points, targets, 7, "trimtab", true);
+      var forestayVals = collect(points, targets, 8, "forestay", false);
+      initChart("rudder-" + mode, points, targets, 6, "rudder", niceDomain(rudderVals), true, baseX, xm);
+      initChart("trimtab-" + mode, points, targets, 7, "trimtab", niceDomain(trimtabVals), true, baseX, xm);
+      initChart("forestay-" + mode, points, targets, 8, "forestay", niceDomain(forestayVals), false, baseX, xm);
+    }
   }
 
   function collect(points, targets, idx, key, abs) {
@@ -175,10 +215,11 @@
     return e;
   }
 
-  // Zoomable/pannable chart with crosshairs. yIndex/targetKey pick the metric;
+  // Zoomable/pannable chart with crosshairs. yIndex/targetKey pick the y metric;
   // normalise=true takes abs() of that metric (used for TWA/AWA/Heel/Rudder/TrimTab).
+  // xMetric picks the x-axis field (TWS or VMG%) from point/target data.
   // Null/undefined values (e.g. missing forestay readings) are skipped.
-  function initChart(id, points, targets, yIndex, targetKey, baseYDomain, normalise, baseXDomain) {
+  function initChart(id, points, targets, yIndex, targetKey, baseYDomain, normalise, baseXDomain, xMetric) {
     var svg = document.getElementById("chart-" + id);
     if (!svg) return;
     var W = 960, H = 480, M = { l: 56, r: 16, t: 14, b: 40 };
@@ -186,10 +227,13 @@
 
     var xDomain = baseXDomain.slice();
     var yDomain = baseYDomain.slice();
+    var xPointIdx = xMetric.pointIdx;
+    var xTargetKey = xMetric.targetKey;
+    var xUnit = xMetric.unit;
 
     function val(v) { return normalise ? Math.abs(v) : v; }
 
-    function xPos(tws) { return M.l + (tws - xDomain[0]) / (xDomain[1] - xDomain[0]) * plotW; }
+    function xPos(xv) { return M.l + (xv - xDomain[0]) / (xDomain[1] - xDomain[0]) * plotW; }
     function yPos(v) { return M.t + plotH - (v - yDomain[0]) / (yDomain[1] - yDomain[0]) * plotH; }
     function xInv(px) { return xDomain[0] + (px - M.l) / plotW * (xDomain[1] - xDomain[0]); }
     function yInv(py) { return yDomain[0] + (M.t + plotH - py) / plotH * (yDomain[1] - yDomain[0]); }
@@ -222,7 +266,7 @@
         svg.appendChild(ty);
       }
       var xt = el("text", { x: M.l + plotW / 2, y: H - 4, class: "chart-axis-label", "text-anchor": "middle" });
-      xt.textContent = "True Wind Speed (kt)";
+      xt.textContent = xMetric.label;
       svg.appendChild(xt);
       var ylab = el("text", {
         x: 14, y: M.t + plotH / 2, class: "chart-axis-label", "text-anchor": "middle",
@@ -234,21 +278,22 @@
       var dataLayer = el("g", { "clip-path": "url(#" + clipId + ")" });
       points.forEach(function (p) {
         var raw = p[yIndex];
-        if (raw === null || raw === undefined) return;
+        var xv = p[xPointIdx];
+        if (raw === null || raw === undefined || xv === null || xv === undefined) return;
         var boat = p[0];
-        var tws = p[1];
         var v = val(raw);
         dataLayer.appendChild(el("circle", {
-          cx: xPos(tws), cy: yPos(v), r: 2.6,
+          cx: xPos(xv), cy: yPos(v), r: 2.6,
           fill: boat === 0 ? "var(--gemera)" : "var(--artemis)",
           "fill-opacity": 0.55
         }));
       });
       targets.forEach(function (t) {
         var raw = t[targetKey];
-        if (raw === null || raw === undefined) return;
+        var xv = t[xTargetKey];
+        if (raw === null || raw === undefined || xv === null || xv === undefined) return;
         dataLayer.appendChild(el("circle", {
-          cx: xPos(t.avgTWS), cy: yPos(val(raw)), r: 5,
+          cx: xPos(xv), cy: yPos(val(raw)), r: 5,
           fill: "var(--accent)", stroke: "#00000066", "stroke-width": 1
         }));
       });
@@ -285,7 +330,7 @@
         lines[0].setAttribute("x1", p.x); lines[0].setAttribute("x2", p.x);
         lines[1].setAttribute("y1", p.y); lines[1].setAttribute("y2", p.y);
         var dataX = xInv(p.x), dataY = yInv(p.y);
-        var text = dataX.toFixed(1) + " kt, " + dataY.toFixed(1);
+        var text = dataX.toFixed(1) + xUnit + ", " + dataY.toFixed(1);
         chLabel.textContent = text;
         var lx = Math.min(p.x + 10, M.l + plotW - 90);
         var ly = Math.max(p.y - 10, M.t + 14);
