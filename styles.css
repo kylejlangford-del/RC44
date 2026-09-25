@@ -2137,3 +2137,12 @@ select:focus, input:focus, textarea:focus {
   background-position: right 12px center;
 }
 .ghost-select:focus { outline: none; border-color: var(--line-strong); }
+
+.fit-line { stroke: var(--accent-2); stroke-width: 2; stroke-dasharray: 6 4; opacity: .85; pointer-events: none; }
+.legend-line { display: inline-block; width: 16px; height: 0; vertical-align: middle; }
+.legend-line--fit { border-top: 2px dashed var(--accent-2); }
+
+/* Targets table v4: VMG% moved to the chart x-axis only, table trimmed down */
+.compare-table--tgt tbody tr:nth-child(even) { background: rgba(255,255,255,.015); }
+.compare-table--tgt tbody tr:hover { background: rgba(71,231,219,.05); }
+.compare-table--condensed th { letter-spacing: .05em; }
