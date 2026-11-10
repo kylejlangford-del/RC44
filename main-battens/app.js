@@ -17,6 +17,7 @@ import {
   var NAME_KEY = "rc44-battens-editor-name";
   var SAIL_KEY_PREFIX = "rc44-battens-sail-"; // per-boat, per-browser mainsail choice
   var SUGGEST_BOAT_KEY = "rc44-suggest-boat"; // per-browser choice of which boat's suggested set to show (never synced)
+  var BOAT_FILTER_KEY = "rc44-battens-boat-filter"; // per-browser choice of which boat(s) the whole page shows (never synced)
   var POSITIONS = [1, 2, 3, 4, 5, 6];
   var BOATS = ["artemis", "gemera"];
   var TWS_MIN = 4, TWS_MAX = 25;
@@ -54,6 +55,13 @@ import {
   var suggestBoat = (function () {
     var saved = safeGet(SUGGEST_BOAT_KEY);
     return BOATS.indexOf(saved) !== -1 ? saved : "artemis";
+  })();
+
+  // Which boat(s) the whole page shows -- "both", "artemis" or "gemera". Per-browser only,
+  // never synced: this is purely a display filter, not a data change.
+  var boatFilter = (function () {
+    var saved = safeGet(BOAT_FILTER_KEY);
+    return ["both", "artemis", "gemera"].indexOf(saved) !== -1 ? saved : "both";
   })();
 
   // ---------- Crossover (wind-range charts): battens & chocks vs TWS, per boat/mainsail/position ----------
@@ -316,9 +324,9 @@ import {
 
   // ---------- View toggle ----------
 
-  document.querySelectorAll(".view-toggle__btn").forEach(function (btn) {
+  document.querySelectorAll("#mainViewToggle .view-toggle__btn").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      document.querySelectorAll(".view-toggle__btn").forEach(function (b) { b.classList.toggle("is-active", b === btn); });
+      document.querySelectorAll("#mainViewToggle .view-toggle__btn").forEach(function (b) { b.classList.toggle("is-active", b === btn); });
       currentView = btn.dataset.view;
       document.getElementById("viewComparison").classList.toggle("is-hidden", currentView !== "comparison");
       document.getElementById("viewInventory").classList.toggle("is-hidden", currentView !== "inventory");
@@ -604,6 +612,52 @@ import {
     });
   }
 
+  // ---------- Boat filter (Both / Artemis only / Gemera only) ----------
+  // Pure display filter applied across Comparison, Full inventory and Crossover: hides the
+  // panel(s) for the boat(s) not selected and widens the remaining one(s) to fill the row.
+  // Per-browser only -- doesn't touch any synced data.
+
+  function applyBoatFilter() {
+    var single = boatFilter !== "both";
+
+    document.querySelectorAll("[data-boat-panel]").forEach(function (panel) {
+      var boat = panel.dataset.boatPanel;
+      panel.classList.toggle("is-hidden", single && boat !== boatFilter);
+    });
+
+    document.querySelectorAll(".boat-columns").forEach(function (bc) {
+      bc.classList.toggle("boat-columns--single", single);
+    });
+
+    // When only one boat is shown, the Suggested set up panel's own Artemis/Gemera toggle
+    // would be a redundant second control -- lock it to the filtered boat and hide it instead.
+    var suggestToggleWrap = document.getElementById("suggestBoatToggle");
+    if (single) {
+      if (suggestBoat !== boatFilter) {
+        suggestBoat = boatFilter;
+        safeSet(SUGGEST_BOAT_KEY, boatFilter);
+        renderSuggestBoatToggle();
+        renderSuggestedSet();
+      }
+      if (suggestToggleWrap) suggestToggleWrap.classList.add("is-hidden");
+    } else if (suggestToggleWrap) {
+      suggestToggleWrap.classList.remove("is-hidden");
+    }
+  }
+
+  document.querySelectorAll("#boatFilterToggle [data-boat-filter]").forEach(function (btn) {
+    btn.classList.toggle("is-active", btn.dataset.boatFilter === boatFilter);
+    btn.addEventListener("click", function () {
+      if (boatFilter === btn.dataset.boatFilter) return;
+      boatFilter = btn.dataset.boatFilter;
+      safeSet(BOAT_FILTER_KEY, boatFilter);
+      document.querySelectorAll("#boatFilterToggle [data-boat-filter]").forEach(function (b) {
+        b.classList.toggle("is-active", b === btn);
+      });
+      applyBoatFilter();
+    });
+  });
+
   function renderSuggestedSet() {
     var wrap = document.getElementById("suggestedSetList");
     var suggestHint = document.getElementById("suggestHint");
@@ -710,6 +764,8 @@ import {
 
   var suggestTwsInput = document.getElementById("suggestTws");
   if (suggestTwsInput) suggestTwsInput.addEventListener("input", renderSuggestedSet);
+
+  applyBoatFilter();
 
   // ---------- Full inventory view ----------
 

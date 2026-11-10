@@ -44,15 +44,21 @@
         </span>
       </div>
 
-      <div class="view-toggle" role="tablist">
+      <div class="view-toggle" role="tablist" id="mainViewToggle">
         <button class="view-toggle__btn is-active" type="button" data-view="comparison">Comparison</button>
         <button class="view-toggle__btn" type="button" data-view="inventory">Full inventory</button>
         <button class="view-toggle__btn" type="button" data-view="crossover">Crossover</button>
       </div>
 
+      <div class="view-toggle boat-filter-toggle" role="tablist" id="boatFilterToggle">
+        <button class="view-toggle__btn is-active" type="button" data-boat-filter="both">Both boats</button>
+        <button class="view-toggle__btn" type="button" data-boat-filter="artemis">Artemis only</button>
+        <button class="view-toggle__btn" type="button" data-boat-filter="gemera">Gemera only</button>
+      </div>
+
       <div id="viewComparison">
         <section class="boat-columns boat-columns--battens">
-          <div class="panel">
+          <div class="panel" data-boat-panel="artemis">
             <div class="boat-col__head">
               <span class="boat-dot boat-dot--artemis"></span>
               <h2>Artemis</h2>
@@ -65,7 +71,7 @@
             </div>
             <div id="col-artemis"></div>
           </div>
-          <div class="panel">
+          <div class="panel" data-boat-panel="gemera">
             <div class="boat-col__head">
               <span class="boat-dot boat-dot--gemera"></span>
               <h2>Gemera</h2>
@@ -102,7 +108,7 @@
 
       <div id="viewInventory" class="is-hidden">
         <section class="boat-columns">
-          <div class="panel">
+          <div class="panel" data-boat-panel="artemis">
             <div class="boat-col__head" style="justify-content:space-between;">
               <div style="display:flex; align-items:center; gap:10px;">
                 <span class="boat-dot boat-dot--artemis"></span>
@@ -113,7 +119,7 @@
             </div>
             <div id="inv-artemis"></div>
           </div>
-          <div class="panel">
+          <div class="panel" data-boat-panel="gemera">
             <div class="boat-col__head" style="justify-content:space-between;">
               <div style="display:flex; align-items:center; gap:10px;">
                 <span class="boat-dot boat-dot--gemera"></span>
@@ -133,7 +139,7 @@
           (bar). Drag each bar to set the true wind speed range it's used for (4&ndash;25kts).
         </p>
         <section class="boat-columns">
-          <div class="panel">
+          <div class="panel" data-boat-panel="artemis">
             <div class="boat-col__head" style="justify-content:space-between;">
               <div style="display:flex; align-items:center; gap:10px;">
                 <span class="boat-dot boat-dot--artemis"></span>
@@ -151,7 +157,7 @@
             <div class="pos-toggle" data-xover-pos="artemis"></div>
             <div id="xover-artemis"></div>
           </div>
-          <div class="panel">
+          <div class="panel" data-boat-panel="gemera">
             <div class="boat-col__head" style="justify-content:space-between;">
               <div style="display:flex; align-items:center; gap:10px;">
                 <span class="boat-dot boat-dot--gemera"></span>
