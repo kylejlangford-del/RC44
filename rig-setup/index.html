@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#07111d" />
+  <title>Rig Set Up · RC44</title>
+  <link rel="stylesheet" href="../styles.css?v=20261110b" />
+</head>
+<body>
+  <div class="bg-glow bg-glow--one"></div>
+  <div class="bg-glow bg-glow--two"></div>
+
+  <main class="site-shell">
+    <header class="topbar">
+      <a class="brand" href="../" aria-label="Back to RC44 Lab">
+        <img src="../assets/seagull-lab-logo.png?v=20260925c" alt="Seagull Data" />
+        <span class="brand__divider"></span>
+        <span class="brand__label">RC44</span>
+      </a>
+      <div class="title-block"><span>Gemera</span><strong>Rig Set Up</strong></div>
+      <a class="ghost-button" href="../">Home</a>
+    </header>
+
+    <div class="page">
+      <div class="section-kicker">Gemera · M1 &amp; M2</div>
+      <h1>Rig set up</h1>
+      <p class="intro">
+        Rake, collar, jack pressure and trim notes by wind speed. Chock and rake wind ranges are also
+        on the <a class="text-link" href="../main-battens/">Main Battens → Crossover</a> tab.
+      </p>
+
+      <section class="rig-limits">
+        <div class="rig-limit">
+          <span class="rig-limit__label">Max jack</span>
+          <strong>240 bar</strong>
+          <span class="rig-limit__sub">at 5.5° rake</span>
+        </div>
+        <div class="rig-limit rig-limit--danger">
+          <span class="rig-limit__label">Max designed jack</span>
+          <strong>270 bar</strong>
+          <span class="rig-limit__sub">rig starts to struggle</span>
+        </div>
+      </section>
+
+      <section class="rig-grid">
+        <div class="panel">
+          <div class="section-kicker">Rake vs collar (rig at base)</div>
+          <table class="grid-table rig-table">
+            <thead><tr><th>Rake</th><th>Collar</th></tr></thead>
+            <tbody>
+              <tr><td>6.5°</td><td>42 mm</td></tr>
+              <tr><td>6.0°</td><td>35 mm</td></tr>
+              <tr><td>5.9°</td><td>33 mm</td></tr>
+              <tr><td>5.8°</td><td>31 mm</td></tr>
+              <tr><td>5.7°</td><td>30 mm</td></tr>
+              <tr><td>5.6°</td><td>28 mm</td></tr>
+              <tr><td>5.5°</td><td>26 mm</td></tr>
+              <tr><td>5.4°</td><td>24 mm</td></tr>
+              <tr><td>5.0°</td><td>18 mm</td></tr>
+              <tr><td>4.5°</td><td>12 mm</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel">
+          <div class="section-kicker">Jack pressure (bar) by rake and rig setting</div>
+          <div class="rig-table-wrap">
+            <table class="grid-table rig-table rig-table--jack">
+              <thead>
+                <tr>
+                  <th>Rake</th>
+                  <th>Base</th>
+                  <th>1 turn off all</th>
+                  <th>+0.5 D1 D2</th>
+                  <th>+1 D1 D2</th>
+                  <th>−1 D1 D2 D3</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>6.5°</td><td>160</td><td></td><td></td><td></td><td></td></tr>
+                <tr><td>6.25°</td><td>170</td><td>160</td><td></td><td></td><td></td></tr>
+                <tr><td>6.0°</td><td>190</td><td>180</td><td>225</td><td></td><td>182</td></tr>
+                <tr><td>5.9°</td><td></td><td></td><td>235</td><td></td><td></td></tr>
+                <tr><td>5.8°</td><td></td><td></td><td class="is-warn">245</td><td></td><td></td></tr>
+                <tr><td>5.75°</td><td></td><td>190</td><td></td><td></td><td></td></tr>
+                <tr><td>5.7°</td><td></td><td></td><td class="is-warn">252</td><td></td><td></td></tr>
+                <tr><td>5.6°</td><td></td><td></td><td class="is-warn">257</td><td></td><td></td></tr>
+                <tr><td>5.5°</td><td>240</td><td>215</td><td class="is-warn">265</td><td class="is-danger">270</td><td>230</td></tr>
+                <tr><td>5.25°</td><td></td><td>240</td><td></td><td></td><td></td></tr>
+                <tr><td>5.0°</td><td class="is-danger">280</td><td class="is-danger">270</td><td></td><td></td><td></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="import-step__hint rig-legend">
+            <span><span class="rig-swatch rig-swatch--warn"></span> over 240 bar (max jack)</span>
+            <span><span class="rig-swatch rig-swatch--danger"></span> 270 bar or more (max designed)</span>
+          </p>
+        </div>
+      </section>
+
+      <div class="section-kicker" style="margin-top:28px;">Set up by wind speed</div>
+      <section class="rig-notes">
+        <article class="panel rig-note">
+          <header><strong>6 kts</strong><span>Upwind</span></header>
+          <ul>
+            <li>Rake 6.0°, 32 mm chock — felt good</li>
+            <li>Tab at 6. Felt like we were going well</li>
+            <li>Trav to +2 or more</li>
+            <li>Better going more check and runner up, rather than easing check</li>
+            <li><em>Open question:</em> go down more in rig tension, or rake aft of 6°?</li>
+          </ul>
+        </article>
+
+        <article class="panel rig-note">
+          <header><strong>8 kts</strong><span>G1</span></header>
+          <ul>
+            <li>Crossover with trav up — need it up at 7 kts, centre is ok at 8 kts</li>
+            <li>Rake back to 5.5°, 28 mm chock, just tension on check</li>
+          </ul>
+        </article>
+
+        <article class="panel rig-note">
+          <header><strong>10 kts</strong><span>G1</span></header>
+          <ul>
+            <li>28 mm chock</li>
+            <li>Keep main tight and press for heel — speed will come</li>
+            <li>Easy to get too twisted on main</li>
+          </ul>
+        </article>
+
+        <article class="panel rig-note">
+          <header><strong>10–12 kts</strong><span>J2</span></header>
+          <ul>
+            <li>Rake 5.5°, middle deflector setting, trav centre</li>
+            <li>Chock 28 mm</li>
+            <li>Check pretty tight in 10, eased in 12</li>
+            <li>Runner 2300 in 10 kts, runner max in 12 kts</li>
+            <li>10 kts: start thinking rake aft</li>
+            <li>10 kts: aggressive to ease cunno</li>
+          </ul>
+        </article>
+
+        <article class="panel rig-note">
+          <header><strong>12 kts</strong><span>G1 uprange</span></header>
+          <ul>
+            <li>Rake 5.5°, 24 mm chock</li>
+            <li>Better to keep the main trimmed on and rake forward — keeps main set and avoids too much rudder angle</li>
+          </ul>
+        </article>
+
+        <article class="panel rig-note">
+          <header><strong>12–14 kts</strong><span>G1 / J2</span></header>
+          <ul>
+            <li>J2: 28 mm chock</li>
+            <li>G1: 24 mm chock</li>
+          </ul>
+        </article>
+
+        <article class="panel rig-note">
+          <header><strong>13 kts</strong><span>J2</span></header>
+          <ul>
+            <li>22 mm chock</li>
+            <li>Deflector middle setting</li>
+            <li>Check stay firm</li>
+            <li>Red battens</li>
+          </ul>
+        </article>
+
+        <article class="panel rig-note">
+          <header><strong>14–18 kts</strong><span>Big waves (Puntaldia 26)</span></header>
+          <ul>
+            <li>20 mm chock</li>
+            <li>Running so much twist the main gets deep — small chock keeps it flat</li>
+          </ul>
+        </article>
+
+        <article class="panel rig-note">
+          <header><strong>16–17 kts</strong><span>J2 top end · J3 comfortable</span></header>
+          <ul>
+            <li>22 mm chock, deflector mid setting</li>
+            <li>Check just tight to stop rig panting</li>
+            <li>Double red B1, B2, B3</li>
+            <li>Vang hard when main starts to wash</li>
+            <li>Rake 5.5° (jack 135)</li>
+          </ul>
+        </article>
+
+        <article class="panel rig-note">
+          <header><strong>23 kts</strong><span></span></header>
+          <ul>
+            <li>Triple red battens</li>
+          </ul>
+        </article>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
