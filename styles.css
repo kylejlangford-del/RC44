@@ -422,6 +422,54 @@ a { color: inherit; }
   font-size: clamp(2.25rem, 3.3vw, 3.55rem);
 }
 
+/* Phone: smaller home-page cards */
+@media (max-width: 620px) {
+  .workspace--row {
+    padding: 28px 0 32px;
+  }
+
+  .tools-row {
+    gap: 12px;
+  }
+
+  .feature-card--compact {
+    min-height: 0;
+    padding: 16px 18px;
+    border-radius: 18px;
+  }
+
+  .feature-card--compact::before {
+    width: 130px;
+    height: 130px;
+    right: -50px;
+    top: -40px;
+  }
+
+  .feature-card--compact .feature-card__body {
+    padding: 14px 0 12px;
+  }
+
+  .feature-card--compact h1 {
+    margin-bottom: 6px;
+    font-size: 1.6rem;
+    letter-spacing: -.035em;
+  }
+
+  .feature-card--compact p {
+    font-size: .86rem;
+    line-height: 1.45;
+  }
+
+  .feature-card--compact .feature-card__bottom {
+    padding-top: 10px;
+    font-size: .8rem;
+  }
+
+  .feature-card--compact .feature-card__arrow {
+    font-size: 1.1rem;
+  }
+}
+
 /* ---------- Inner tool pages (Main Battens / Wind Calibrator / Sail Shots) ---------- */
 
 .page {
