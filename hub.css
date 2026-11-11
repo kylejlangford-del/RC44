@@ -1,0 +1,240 @@
+/* RC44 homepage — Seagull Hub style (same look as seagull-lab.onrender.com) */
+
+.viz-root {
+  color-scheme: dark;
+  --surface-1: #1c2834;
+  --page-plane: #16202a;
+  --text-primary: #dce6f0;
+  --text-secondary: #8c9bab;
+  --text-muted: #5d6b7a;
+  --border: #2b3b4b;
+  --accent: #2fe0c4;
+  display: block;
+  min-height: 100vh;
+  background: var(--page-plane);
+  color: var(--text-primary);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; background: #16202a; }
+
+/* ---------- Header ---------- */
+
+.hero {
+  position: relative;
+  padding: calc(40px + env(safe-area-inset-top, 0px)) 24px 36px;
+  text-align: center;
+  overflow: hidden;
+}
+
+.hero .mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  color: var(--accent);
+  margin-bottom: 20px;
+  text-decoration: none;
+}
+
+.hero .mark svg { width: 128px; height: 78px; flex: 0 0 auto; }
+
+.hero .mark span {
+  font-family: Orbitron, monospace;
+  font-weight: 500;
+  font-size: 32px;
+  letter-spacing: 8px;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.hero .mark span b { color: var(--accent); font-weight: 700; }
+
+.hero h1 {
+  font-family: Orbitron, monospace;
+  font-size: clamp(22px, 4vw, 30px);
+  font-weight: 700;
+  margin: 0 0 6px;
+  letter-spacing: .5px;
+}
+
+.hero .sub {
+  margin: 0;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ---------- Sections and cards ---------- */
+
+main { max-width: 980px; margin: 0 auto; padding: 36px 24px 80px; }
+
+.category { margin: 0 0 40px; }
+.category:last-child { margin-bottom: 0; }
+
+.section-label {
+  font-family: "Share Tech Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  position: relative;
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 18px 17px;
+  transition: transform .15s, box-shadow .15s, border-color .15s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: rgba(0, 0, 0, .2) 0 8px 24px;
+  border-color: var(--accent);
+}
+
+.card::after {
+  content: "→";
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-size: 14px;
+  color: var(--text-muted);
+  transition: color .15s;
+}
+
+.card:hover::after { color: var(--accent); }
+
+.card h3 {
+  font-family: Orbitron, monospace;
+  margin: 0 0 6px;
+  padding-right: 22px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+
+.card p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.boat-tag {
+  display: inline-block;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 9.5px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: rgba(47, 224, 196, .12);
+  border: 1px solid rgba(47, 224, 196, .3);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 8px;
+  vertical-align: 2px;
+}
+
+footer {
+  text-align: center;
+  padding: 24px 24px 36px;
+  color: var(--text-muted);
+  font-size: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- Phone ---------- */
+
+@media (max-width: 560px) {
+  .hero { padding: calc(28px + env(safe-area-inset-top, 0px)) 16px 26px; }
+  .hero .mark { gap: 10px; margin-bottom: 14px; }
+  .hero .mark svg { width: 72px; height: 44px; }
+  .hero .mark span { font-size: 20px; letter-spacing: 4px; }
+  main { padding: 24px 14px 48px; }
+  .category { margin-bottom: 28px; }
+  .section-label { margin-bottom: 12px; }
+  .menu-grid { gap: 10px; }
+  .card { padding: 14px 14px 13px; }
+  .card h3 { font-size: 13px; }
+  .card p { font-size: 12.5px; line-height: 1.45; }
+  .card::after { top: 13px; right: 13px; }
+}
+
+/* ---------- Laptop: side menu + header in one row ---------- */
+
+.sidemenu { display: none; }
+
+@media (min-width: 900px) {
+  .hero {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    text-align: left;
+    padding: calc(24px + env(safe-area-inset-top, 0px)) 32px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero .mark { gap: 14px; margin-bottom: 0; }
+  .hero .mark svg { width: 88px; height: 54px; }
+  .hero .mark span { font-size: 24px; letter-spacing: 6px; }
+  .hero .titles { margin-left: auto; text-align: right; }
+  .hero h1 { font-size: 20px; margin: 0 0 4px; }
+
+  .hub-body {
+    display: grid;
+    grid-template-columns: 210px minmax(0, 1fr);
+    max-width: 1300px;
+    margin: 0 auto;
+  }
+
+  .sidemenu {
+    display: block;
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    border-right: 1px solid var(--border);
+    padding: 26px 18px;
+  }
+
+  .sidemenu a {
+    display: block;
+    font-family: "Share Tech Mono", monospace;
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 9px 12px;
+    border-radius: 8px;
+    margin-bottom: 2px;
+  }
+
+  .sidemenu a:hover,
+  .sidemenu a.on { background: var(--surface-1); color: var(--text-primary); }
+  .sidemenu a.on { box-shadow: inset 2px 0 0 var(--accent); }
+
+  .hub-body main { max-width: none; margin: 0; padding: 28px 36px 60px; }
+  .category { margin-bottom: 30px; scroll-margin-top: 20px; }
+  .menu-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .card { padding: 16px 16px 15px; }
+  .card h3 { font-size: 13.5px; }
+  .card p { font-size: 12.5px; line-height: 1.45; }
+  .card::after { top: 14px; right: 14px; font-size: 13px; }
+}

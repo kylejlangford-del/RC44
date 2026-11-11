@@ -2,112 +2,96 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#07111d" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#16202a" />
   <title>RC44 · Seagull Data</title>
-  <link rel="stylesheet" href="./styles.css?v=20261110b" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&family=Inter:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="./hub.css?v=20261111a" />
 </head>
 <body>
-  <div class="bg-glow bg-glow--one"></div>
-  <div class="bg-glow bg-glow--two"></div>
+<div class="viz-root">
+  <header class="hero">
+    <a class="mark" href="./" aria-label="RC44 home">
+      <svg viewBox="0 0 40 24" aria-hidden="true">
+        <path d="M2 16 C8 16 12 6 20 6 C28 6 32 16 38 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"></path>
+        <path d="M6 21 C11 21 14 13 20 13 C26 13 29 21 34 21" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".5"></path>
+      </svg>
+      <span>SEAGULL<b>DATA</b></span>
+    </a>
+    <div class="titles">
+      <h1>RC44</h1>
+      <p class="sub">Artemis &amp; Gemera</p>
+    </div>
+  </header>
 
-  <main class="site-shell">
-    <header class="topbar">
-      <a class="brand" href="./" aria-label="RC44 home">
-        <img src="./assets/seagull-lab-logo.png?v=20260925c" alt="Seagull Data" />
-        <span class="brand__divider"></span>
-        <span class="brand__label">RC44</span>
-      </a>
-      <span class="topbar__meta">Artemis &amp; Gemera</span>
-    </header>
+  <div class="hub-body">
+    <nav class="sidemenu" aria-label="Sections">
+      <a href="#set-up" class="on">Set up</a>
+      <a href="#performance">Performance</a>
+      <a href="#instruments">Instruments</a>
+    </nav>
 
-    <section class="workspace workspace--row">
-      <div class="tools-row">
-        <a class="feature-card feature-card--compact" href="./main-battens/">
-          <div class="feature-card__top">
-            <span class="feature-card__index">01</span>
-            <span class="feature-card__status">Available</span>
-          </div>
+    <main>
+      <section class="category" id="set-up">
+        <p class="section-label">Set up</p>
+        <div class="menu-grid">
+          <a class="card" href="./main-battens/">
+            <h3>Main Battens</h3>
+            <p>Installed mainsail battens, name and EI, Artemis vs Gemera, with the wind-range crossover.</p>
+          </a>
+          <a class="card" href="./rig-setup/">
+            <h3>Rig Set Up<span class="boat-tag">Gemera</span></h3>
+            <p>Rake vs collar, jack pressure by rig setting, and chock, rake and trim notes by wind speed.</p>
+          </a>
+        </div>
+      </section>
 
-          <div class="feature-card__body">
-            <h1>Main Battens</h1>
-            <p>Select and compare installed mainsail battens — name and EI, Artemis vs Gemera, across all six positions.</p>
-          </div>
+      <section class="category" id="performance">
+        <p class="section-label">Performance</p>
+        <div class="menu-grid">
+          <a class="card" href="./targets/">
+            <h3>Targets</h3>
+            <p>Upwind and downwind targets by true wind speed, from Njord telemetry, Artemis vs Gemera.</p>
+          </a>
+          <a class="card" href="./sail-shots/">
+            <h3>Sail Shots</h3>
+            <p>Sail scans filtered by TWS, boat speed and camber, Artemis vs Gemera side by side.</p>
+          </a>
+        </div>
+      </section>
 
-          <div class="feature-card__bottom">
-            <span>Open tool</span>
-            <span class="feature-card__arrow">↗</span>
-          </div>
-        </a>
+      <section class="category" id="instruments">
+        <p class="section-label">Instruments</p>
+        <div class="menu-grid">
+          <a class="card" href="./wind-calibrator/">
+            <h3>Wind Calibrator</h3>
+            <p>Load a B&amp;G H5000 log and get suggested wind angle, wind speed and boat speed corrections.</p>
+          </a>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
 
-        <a class="feature-card feature-card--compact" href="./sail-shots/">
-          <div class="feature-card__top">
-            <span class="feature-card__index">02</span>
-            <span class="feature-card__status">Available</span>
-          </div>
-
-          <div class="feature-card__body">
-            <h1>Sail Shots</h1>
-            <p>Filter historical sail scans by TWS, boat speed and camber, and compare Artemis vs Gemera side by side.</p>
-          </div>
-
-          <div class="feature-card__bottom">
-            <span>Open tool</span>
-            <span class="feature-card__arrow">↗</span>
-          </div>
-        </a>
-
-        <a class="feature-card feature-card--compact" href="./wind-calibrator/">
-          <div class="feature-card__top">
-            <span class="feature-card__index">03</span>
-            <span class="feature-card__status">Available</span>
-          </div>
-
-          <div class="feature-card__body">
-            <h1>Wind Calibrator</h1>
-            <p>Load a B&amp;G H5000 log CSV and get suggested corrections for the wind angle, wind speed and boat speed tables.</p>
-          </div>
-
-          <div class="feature-card__bottom">
-            <span>Open tool</span>
-            <span class="feature-card__arrow">↗</span>
-          </div>
-        </a>
-
-        <a class="feature-card feature-card--compact" href="./targets/">
-          <div class="feature-card__top">
-            <span class="feature-card__index">04</span>
-            <span class="feature-card__status">Available</span>
-          </div>
-
-          <div class="feature-card__body">
-            <h1>Targets</h1>
-            <p>Downwind and upwind performance targets by true wind speed, from Njord raw telemetry, Artemis vs Gemera.</p>
-          </div>
-
-          <div class="feature-card__bottom">
-            <span>Open tool</span>
-            <span class="feature-card__arrow">↗</span>
-          </div>
-        </a>
-        <a class="feature-card feature-card--compact" href="./rig-setup/">
-          <div class="feature-card__top">
-            <span class="feature-card__index">05</span>
-            <span class="feature-card__status">Available</span>
-          </div>
-
-          <div class="feature-card__body">
-            <h1>Rig Set Up</h1>
-            <p>Rake vs collar, jack pressure by rig setting, and chock, rake and trim notes by wind speed for Gemera.</p>
-          </div>
-
-          <div class="feature-card__bottom">
-            <span>Open tool</span>
-            <span class="feature-card__arrow">↗</span>
-          </div>
-        </a>
-      </div>
-    </section>
-  </main>
+<script>
+  // Side menu (laptop): the section in view is the one lit in the menu.
+  (function () {
+    var links = document.querySelectorAll(".sidemenu a");
+    if (!links.length) return;
+    function spot() {
+      var cur = links[0];
+      for (var i = 0; i < links.length; i++) {
+        var sec = document.querySelector(links[i].getAttribute("href"));
+        if (sec && sec.getBoundingClientRect().top <= 120) cur = links[i];
+      }
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) cur = links[links.length - 1];
+      for (var j = 0; j < links.length; j++) links[j].classList.toggle("on", links[j] === cur);
+    }
+    window.addEventListener("scroll", spot, { passive: true });
+    spot();
+  })();
+</script>
 </body>
 </html>
