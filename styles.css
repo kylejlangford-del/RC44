@@ -2356,3 +2356,19 @@ select:focus, input:focus, textarea:focus {
   .rig-table { font-size: .8rem; }
   .rig-table th, .rig-table td { padding: 5px 6px; }
 }
+
+.rig-table--tws td:first-child { text-align: left; white-space: nowrap; }
+.rig-table--tws th:first-child { text-align: left; }
+.rig-table--tws td { white-space: normal; min-width: 76px; }
+.rig-table--tws th { color: var(--accent); font-size: .8rem; }
+.rig-table--tws td:first-child,
+.rig-table--tws th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #0d1b29;
+}
+@media (max-width: 520px) {
+  .rig-table--tws td:first-child { white-space: normal; min-width: 0; max-width: 92px; }
+  .rig-table--tws td { min-width: 70px; }
+}
