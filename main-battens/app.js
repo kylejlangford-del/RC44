@@ -376,6 +376,22 @@ import {
     return (ei === null || ei === undefined || ei === "") ? "EI —" : "EI " + ei;
   }
 
+  // Chocks, rake, rig set up, lift off: smallest number in the name at the top
+  // ("18mm", "5.5 deg", "-1 D1"). Names with no number go to the bottom.
+  function sortByNum(list) {
+    function num(d) {
+      var m = String(d && d.name || "").replace(",", ".").match(/[-+−]?\d+(\.\d+)?/);
+      return m ? Number(m[0].replace("−", "-")) : null;
+    }
+    return (list || []).slice().sort(function (a, b) {
+      var an = num(a), bn = num(b);
+      if (an === null && bn === null) return 0;
+      if (an === null) return 1;
+      if (bn === null) return -1;
+      return an - bn;
+    });
+  }
+
   function sortByEi(list) {
     return list.slice().sort(function (a, b) {
       var ae = (a.ei === null || a.ei === undefined || a.ei === "") ? null : Number(a.ei);
@@ -546,7 +562,7 @@ import {
     if (!kindData) return [];
     var ranges = kindData.ranges || {};
     var results = [];
-    (kindData.defs || []).forEach(function (d) {
+    sortByNum(kindData.defs).forEach(function (d) {
       var r = ranges[d.id];
       if (r && tws >= r.min && tws <= r.max) results.push({ id: d.id, label: d.name, sub: "" });
     });
@@ -1162,7 +1178,7 @@ import {
       ? sortByEi(slotsFor(boat)[pos].battens.filter(function (b) { return !b.decommissioned; })).map(function (b) {
           return { id: b.id, label: b.name, sub: eiLabel(b.ei), removable: false };
         })
-      : shared[kind].defs.map(function (c) { return { id: c.id, label: c.name, sub: "", removable: true }; });
+      : sortByNum(shared[kind].defs).map(function (c) { return { id: c.id, label: c.name, sub: "", removable: true }; });
 
     if (!rows.length) {
       var empty = document.createElement("p");
