@@ -11,7 +11,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="RC44" />
   <title>Main Battens · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20260923b" />
+  <link rel="stylesheet" href="../styles.css?v=20261112a" />
 </head>
 <body>
   <div class="bg-glow bg-glow--one"></div>
@@ -49,6 +49,26 @@
           edits will sync between devices automatically.
         </span>
       </div>
+
+      <section class="panel event-mains" id="eventMains">
+        <div class="event-mains__head">
+          <div class="section-kicker" style="margin:0;">Event mains</div>
+          <input id="eventName" class="event-mains__name" type="text" placeholder="Event name (e.g. Puntaldia 2026)" maxlength="60" />
+        </div>
+        <p class="event-mains__hint">The main each boat is using this event. Shared with both teams; tap a main to change it.</p>
+        <div class="event-mains__row" data-event-boat="artemis">
+          <span class="boat-dot boat-dot--artemis"></span>
+          <strong>Artemis</strong>
+          <div class="sail-toggle event-mains__toggle" data-event-toggle="artemis"></div>
+          <span class="event-mains__meta" data-event-meta="artemis">Not set</span>
+        </div>
+        <div class="event-mains__row" data-event-boat="gemera">
+          <span class="boat-dot boat-dot--gemera"></span>
+          <strong>Gemera</strong>
+          <div class="sail-toggle event-mains__toggle" data-event-toggle="gemera"></div>
+          <span class="event-mains__meta" data-event-meta="gemera">Not set</span>
+        </div>
+      </section>
 
       <div class="view-toggle" role="tablist" id="mainViewToggle">
         <button class="view-toggle__btn is-active" type="button" data-view="comparison">Comparison</button>
@@ -222,6 +242,6 @@
 
   <script src="./data.js?v=20260922n"></script>
   <script src="./firebase-config.js"></script>
-  <script type="module" src="./app.js?v=20261111a"></script>
+  <script type="module" src="./app.js?v=20261112a"></script>
 </body>
 </html>

@@ -46,6 +46,13 @@ import {
     currentSail[boat] = (saved && sails.indexOf(saved) !== -1) ? saved : sails[0];
   });
 
+  // Event mains: which mainsail each boat is using this event. Shared between devices and both
+  // teams (Firestore rc44-crossover/event-mains). The page opens on each boat's event main unless
+  // this device has picked another main this visit.
+  var eventMains = { event: "", artemis: null, gemera: null }; // boat: {sail, by, at:Date}
+  var sailPickedThisVisit = {};
+  var eventMainsLoaded = false;
+
   // The active position→slot map for a boat, under its currently selected mainsail.
   function slotsFor(boat) {
     return data[boat].bySail[currentSail[boat]];
@@ -162,6 +169,7 @@ import {
           liveMode = true;
           document.getElementById("configWarning").classList.add("is-hidden");
           BOATS.forEach(function (boat) { subscribeBoat(boat); subscribeCrossover(boat); });
+          subscribeEventMains();
         }
       });
       signInAnonymously(auth).catch(function (e) {
@@ -268,6 +276,87 @@ import {
     safeSet(XOVER_STORAGE_KEY, JSON.stringify(crossoverData));
   }
 
+  // ---------- Event mains (shared) ----------
+
+  function subscribeEventMains() {
+    var ref = doc(db, "rc44-crossover", "event-mains");
+    onSnapshot(ref, function (snap) {
+      var d = snap.exists() ? snap.data() : {};
+      eventMains.event = d.event || "";
+      BOATS.forEach(function (boat) {
+        var e = d[boat];
+        eventMains[boat] = (e && e.sail) ? {
+          sail: e.sail,
+          by: e.by || "",
+          at: e.at && e.at.toDate ? e.at.toDate() : null
+        } : null;
+        // Open on the event main, unless this device picked another main this visit.
+        var sails = data[boat].mainsails || [];
+        if (eventMains[boat] && !sailPickedThisVisit[boat] && sails.indexOf(eventMains[boat].sail) !== -1) {
+          currentSail[boat] = eventMains[boat].sail;
+        }
+      });
+      eventMainsLoaded = true;
+      renderAll();
+    }, function (err) {
+      console.error("Event mains sync error", err);
+    });
+  }
+
+  function saveEventMain(boat, sail) {
+    eventMains[boat] = { sail: sail, by: currentName(), at: new Date() };
+    currentSail[boat] = sail;
+    safeSet(SAIL_KEY_PREFIX + boat, sail);
+    renderAll();
+    if (!liveMode) return;
+    var patch = {};
+    patch[boat] = { sail: sail, by: currentName(), at: serverTimestamp() };
+    setDoc(doc(db, "rc44-crossover", "event-mains"), patch, { merge: true })
+      .catch(function (e) { alert("Couldn't save the event main — check your connection. (" + e.message + ")"); });
+  }
+
+  function saveEventName(name) {
+    eventMains.event = name;
+    if (!liveMode) return;
+    setDoc(doc(db, "rc44-crossover", "event-mains"), { event: name }, { merge: true })
+      .catch(function (e) { console.error("Event name save failed", e); });
+  }
+
+  var eventNameInput = document.getElementById("eventName");
+  if (eventNameInput) {
+    eventNameInput.addEventListener("change", function () { saveEventName(eventNameInput.value.trim()); });
+  }
+
+  function renderEventMains() {
+    if (eventNameInput && document.activeElement !== eventNameInput) eventNameInput.value = eventMains.event || "";
+    BOATS.forEach(function (boat) {
+      var wrap = document.querySelector('[data-event-toggle="' + boat + '"]');
+      var meta = document.querySelector('[data-event-meta="' + boat + '"]');
+      if (!wrap) return;
+      var cur = eventMains[boat];
+      wrap.innerHTML = "";
+      (data[boat].mainsails || []).forEach(function (sail) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "sail-toggle__btn" + (cur && cur.sail === sail ? " is-active" : "");
+        btn.textContent = sail;
+        btn.addEventListener("click", function () {
+          if (cur && cur.sail === sail) return;
+          var who = data[boat].boatLabel || boat;
+          if (!confirm("Set " + sail + " as " + who + "'s main for this event? Both teams will see it.")) return;
+          saveEventMain(boat, sail);
+        });
+        wrap.appendChild(btn);
+      });
+      if (meta) {
+        meta.textContent = cur
+          ? "Set by " + (cur.by || "someone") + " · " + relativeTime(cur.at)
+          : (eventMainsLoaded || !liveMode ? "Not set — tap a main" : "Loading…");
+        meta.classList.toggle("is-unset", !cur);
+      }
+    });
+  }
+
   // ---------- Relative time / sync status ----------
 
   function relativeTime(date) {
@@ -343,17 +432,21 @@ import {
   // ---------- Mainsail toggle (per boat: Artemis M12/M13, Gemera M1/M2) ----------
 
   function renderSailToggles() {
+    renderEventMains();
     BOATS.forEach(function (boat) {
       document.querySelectorAll('[data-sail-toggle="' + boat + '"]').forEach(function (wrap) {
         wrap.innerHTML = "";
         (data[boat].mainsails || []).forEach(function (sail) {
           var btn = document.createElement("button");
           btn.type = "button";
-          btn.className = "sail-toggle__btn" + (currentSail[boat] === sail ? " is-active" : "");
+          var isEvent = eventMains[boat] && eventMains[boat].sail === sail;
+          btn.className = "sail-toggle__btn" + (currentSail[boat] === sail ? " is-active" : "") + (isEvent ? " is-event" : "");
           btn.textContent = sail;
+          if (isEvent) btn.title = "Event main";
           btn.addEventListener("click", function () {
             if (currentSail[boat] === sail) return;
             currentSail[boat] = sail;
+            sailPickedThisVisit[boat] = true;
             safeSet(SAIL_KEY_PREFIX + boat, sail);
             renderSailToggles();
             renderAll();

@@ -2372,3 +2372,71 @@ select:focus, input:focus, textarea:focus {
   .rig-table--tws td:first-child { white-space: normal; min-width: 0; max-width: 92px; }
   .rig-table--tws td { min-width: 70px; }
 }
+
+/* ---------- Main Battens: Event mains ---------- */
+
+.event-mains { margin-bottom: 20px; padding: 16px 18px; }
+
+.event-mains__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.event-mains__name {
+  flex: 1 1 200px;
+  max-width: 320px;
+  font: inherit;
+  font-size: .85rem;
+  padding: 7px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, .2);
+  color: var(--text);
+}
+
+.event-mains__hint {
+  margin: 8px 0 10px;
+  font-size: .78rem;
+  color: var(--muted);
+}
+
+.event-mains__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid rgba(115, 135, 160, .12);
+}
+
+.event-mains__row strong { min-width: 64px; }
+
+.event-mains__toggle { margin-left: 0; }
+
+.event-mains__meta {
+  margin-left: auto;
+  font-size: .76rem;
+  color: var(--muted);
+}
+
+.event-mains__meta.is-unset { color: #ffd38a; }
+
+/* The event main gets a small dot on every other main switch on the page. */
+.sail-toggle__btn.is-event { position: relative; }
+.sail-toggle__btn.is-event::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ffd38a;
+}
+
+@media (max-width: 520px) {
+  .event-mains__meta { margin-left: 0; width: 100%; }
+}
