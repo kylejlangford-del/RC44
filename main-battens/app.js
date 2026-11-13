@@ -287,6 +287,7 @@ import {
         var e = d[boat];
         eventMains[boat] = (e && e.sail) ? {
           sail: e.sail,
+          locked: !!e.locked,
           by: e.by || "",
           at: e.at && e.at.toDate ? e.at.toDate() : null
         } : null;
@@ -304,16 +305,34 @@ import {
   }
 
   function saveEventMain(boat, sail) {
-    eventMains[boat] = { sail: sail, by: currentName(), at: new Date() };
+    eventMains[boat] = { sail: sail, locked: false, by: currentName(), at: new Date() };
     currentSail[boat] = sail;
     safeSet(SAIL_KEY_PREFIX + boat, sail);
     renderAll();
     if (!liveMode) return;
     var patch = {};
-    patch[boat] = { sail: sail, by: currentName(), at: serverTimestamp() };
+    patch[boat] = { sail: sail, locked: false, by: currentName(), at: serverTimestamp() };
     setDoc(doc(db, "rc44-crossover", "event-mains"), patch, { merge: true })
       .catch(function (e) { alert("Couldn't save the event main — check your connection. (" + e.message + ")"); });
   }
+
+  function setEventLock(boat, locked) {
+    if (!eventMains[boat]) return;
+    eventMains[boat].locked = locked;
+    if (locked) eventBoxOpen = false;
+    renderAll();
+    if (!liveMode) return;
+    var patch = {};
+    patch[boat] = { locked: locked };
+    setDoc(doc(db, "rc44-crossover", "event-mains"), patch, { merge: true })
+      .catch(function (e) { alert("Couldn't save the lock — check your connection. (" + e.message + ")"); });
+  }
+
+  // Box shrinks to one line once every boat that has a main set is locked. Tapping the line opens
+  // it again on this device only.
+  var eventBoxOpen = false;
+  var eventBar = document.getElementById("eventMainsBar");
+  if (eventBar) eventBar.addEventListener("click", function () { eventBoxOpen = !eventBoxOpen; renderEventMains(); });
 
   function saveEventName(name) {
     eventMains.event = name;
@@ -335,13 +354,31 @@ import {
       if (!wrap) return;
       var cur = eventMains[boat];
       wrap.innerHTML = "";
+      var lockBtn = document.querySelector('[data-event-lock="' + boat + '"]');
+      if (!lockBtn) {
+        lockBtn = document.createElement("button");
+        lockBtn.type = "button";
+        lockBtn.className = "ghost-button event-mains__lock";
+        lockBtn.setAttribute("data-event-lock", boat);
+        lockBtn.addEventListener("click", function () {
+          var c = eventMains[boat];
+          if (!c) return;
+          if (c.locked && !confirm("Unlock " + (data[boat].boatLabel || boat) + "'s event main so it can be changed?")) return;
+          setEventLock(boat, !c.locked);
+        });
+        wrap.parentNode.appendChild(lockBtn);
+      }
+      lockBtn.classList.toggle("is-hidden", !cur);
+      lockBtn.textContent = cur && cur.locked ? "🔒 Locked · unlock" : "Lock";
+      wrap.classList.toggle("is-locked", !!(cur && cur.locked));
       (data[boat].mainsails || []).forEach(function (sail) {
+        if (cur && cur.locked && cur.sail !== sail) return;
         var btn = document.createElement("button");
         btn.type = "button";
         btn.className = "sail-toggle__btn" + (cur && cur.sail === sail ? " is-active" : "");
         btn.textContent = sail;
         btn.addEventListener("click", function () {
-          if (cur && cur.sail === sail) return;
+          if (cur && (cur.sail === sail || cur.locked)) return;
           var who = data[boat].boatLabel || boat;
           if (!confirm("Set " + sail + " as " + who + "'s main for this event? Both teams will see it.")) return;
           saveEventMain(boat, sail);
@@ -355,6 +392,25 @@ import {
         meta.classList.toggle("is-unset", !cur);
       }
     });
+
+    var anyLocked = BOATS.some(function (b) { return eventMains[b] && eventMains[b].locked; });
+    var allSetLocked = BOATS.every(function (b) { return !eventMains[b] || eventMains[b].locked; });
+    var collapsed = anyLocked && allSetLocked;
+    var box = document.getElementById("eventMains");
+    if (box) box.classList.toggle("is-hidden", collapsed && !eventBoxOpen);
+    if (eventBar) {
+      eventBar.classList.toggle("is-hidden", !collapsed);
+      eventBar.classList.toggle("is-open", eventBoxOpen);
+      var parts = BOATS.map(function (b) {
+        var label = data[b].boatLabel || b;
+        return '<span class="event-mains-bar__boat"><span class="boat-dot boat-dot--' + b + '"></span>' +
+          label + ' <strong>' + (eventMains[b] ? eventMains[b].sail : "—") + '</strong></span>';
+      });
+      eventBar.innerHTML = '<span class="event-mains-bar__lock">🔒</span>' +
+        (eventMains.event ? '<span class="event-mains-bar__event">' + eventMains.event.replace(/[<>&]/g, "") + '</span>' : '') +
+        parts.join("") +
+        '<span class="event-mains-bar__more">' + (eventBoxOpen ? "Hide" : "Change") + '</span>';
+    }
   }
 
   // ---------- Relative time / sync status ----------
@@ -797,6 +853,7 @@ import {
     if (suggestHint) suggestHint.classList.toggle("is-hidden", anyRanges);
 
     var anyRowShown = false;
+    var changeList = [], keepList = [];
 
     // Chocks/rake/rig set up/lift off apply to the whole boat's mainsail, so they get one row
     // here — shown above the per-position battens rows — rather than being repeated under
@@ -834,15 +891,37 @@ import {
       var row = document.createElement("div");
       row.className = "suggested-set-row";
 
+      var battenMatches = findBattenSuggestions(boat, pos, tws);
+
+      // Keep or change: is the batten that's in the sail now one of the suggestions?
+      var installedId = slotsFor(boat)[pos].installed;
+      var installedB = installedId ? findBatten(boat, pos, installedId) : null;
+      var keep = battenMatches.some(function (m) { return m.id === installedId; });
+      var status = !battenMatches.length ? "none" : (keep ? "keep" : "change");
+      if (status === "change") changeList.push("B" + pos);
+      if (status === "keep") keepList.push("B" + pos);
+
       var head = document.createElement("div");
       head.className = "compare-row__head";
       head.textContent = "B" + pos;
+      if (status !== "none") {
+        var mark = document.createElement("span");
+        mark.className = "suggest-status suggest-status--" + status;
+        mark.textContent = status === "keep" ? "✓ Keep" : "⇄ Change";
+        mark.title = status === "keep" ? "The batten in the sail now is suggested — leave it" : "Swap to a suggested batten";
+        head.appendChild(mark);
+      }
       row.appendChild(head);
 
       var groupsWrap = document.createElement("div");
       groupsWrap.className = "suggested-set-groups";
+      if (status === "change") {
+        var now = document.createElement("div");
+        now.className = "suggest-now";
+        now.textContent = "In the sail now: " + (installedB ? installedB.name + " · " + eiLabel(installedB.ei) : "none set");
+        groupsWrap.appendChild(now);
+      }
 
-      var battenMatches = findBattenSuggestions(boat, pos, tws);
       groupsWrap.appendChild(buildSuggestGroup("Battens", battenMatches, function (m) {
         var already = slotsFor(boat)[pos].installed === m.id;
         return {
@@ -859,6 +938,16 @@ import {
       row.appendChild(groupsWrap);
       wrap.appendChild(row);
     });
+
+    if (changeList.length || keepList.length) {
+      var summary = document.createElement("div");
+      summary.className = "suggest-summary";
+      summary.innerHTML = changeList.length
+        ? '<span class="suggest-status suggest-status--change">⇄ Change ' + changeList.length + '</span> ' + changeList.join(", ") +
+          (keepList.length ? ' <span class="suggest-summary__keep">· keep ' + keepList.join(", ") + '</span>' : '')
+        : '<span class="suggest-status suggest-status--keep">✓ No batten changes</span> all suggested battens are already in the sail';
+      wrap.insertBefore(summary, wrap.firstChild);
+    }
 
     if (!anyRowShown) {
       var empty = document.createElement("p");
