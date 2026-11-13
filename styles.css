@@ -17,6 +17,7 @@
 * { box-sizing: border-box; }
 
 html, body { min-height: 100%; }
+html { overflow-x: hidden; }
 
 body {
   margin: 0;
@@ -45,6 +46,7 @@ a { color: inherit; }
 
 .bg-glow {
   position: fixed;
+  max-width: 100vw;
   border-radius: 999px;
   pointer-events: none;
   filter: blur(80px);
@@ -540,20 +542,20 @@ select:focus, input:focus, textarea:focus {
 
 .boat-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 24px;
 }
 
 .boat-columns--battens { margin-bottom: 40px; }
 
 @media (max-width: 900px) {
-  .boat-columns { grid-template-columns: 1fr; }
+  .boat-columns { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* When the boat filter (Main Battens) narrows the page to one boat, the remaining panel
    takes the full row instead of sitting in a half-width column. */
 .boat-columns--single {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .boat-filter-toggle {
@@ -612,7 +614,7 @@ select:focus, input:focus, textarea:focus {
 
 .batten-slot {
   display: grid;
-  grid-template-columns: 32px 1fr auto;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: 12px 10px;
@@ -632,6 +634,9 @@ select:focus, input:focus, textarea:focus {
 
 .batten-slot select {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
 }
 
 .batten-slot__ei {
@@ -894,7 +899,7 @@ select:focus, input:focus, textarea:focus {
 
 .manage-add-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
   margin: 12px 0 16px;
 }
@@ -928,7 +933,7 @@ select:focus, input:focus, textarea:focus {
 
 .split-view {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 24px;
 }
 
@@ -2554,4 +2559,18 @@ textarea.log-input { resize: vertical; }
 @media (max-width: 520px) {
   .log-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .log-grid .log-field:not(.log-field--small) { grid-column: 1 / -1; }
+}
+
+/* iPhone fit: Safari sizes <select> to its longest option, which pushed the page wider than
+   the screen. Keep every panel inside the screen width. */
+.panel { min-width: 0; max-width: 100%; }
+.boat-col__head { min-width: 0; }
+.event-mains-bar { box-sizing: border-box; max-width: 100%; min-width: 0; }
+.event-mains-bar > span { min-width: 0; }
+@media (max-width: 520px) {
+  .batten-slot { grid-template-columns: 24px minmax(0, 1fr) auto; gap: 6px; }
+  .batten-slot__ei { min-width: 52px; font-size: .8rem; }
+  .batten-slot__manage { margin-left: 30px !important; }
+  .event-mains-bar { gap: 4px 10px; font-size: .78rem; }
+  .event-mains-bar__more { margin-left: 0; }
 }
