@@ -11,7 +11,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="RC44" />
   <title>Main Battens · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20261113f" />
+  <link rel="stylesheet" href="../styles.css?v=20261113j" />
 </head>
 <body class="page-battens">
   <div class="bg-glow bg-glow--one"></div>
@@ -124,12 +124,25 @@
             <h2 style="margin-top:0;" class="phone-hide">Suggested set up</h2>
             <div class="sail-toggle" id="suggestBoatToggle"></div>
           </div>
+          <div class="jib-picker jib-picker--suggest" id="suggestJibPicker" role="group" aria-label="Jib">
+            <span class="jib-picker__label">Jib</span>
+            <button type="button" class="jib-picker__btn" data-jib="auto">Auto</button>
+            <button type="button" class="jib-picker__btn" data-jib="G1">G1</button>
+            <button type="button" class="jib-picker__btn" data-jib="J2">J2</button>
+            <button type="button" class="jib-picker__btn" data-jib="J3">J3</button>
+          </div>
           <div class="suggest-tws-range">
             <span class="suggest-tws-range__label">TWS</span>
             <input id="suggestTws" type="number" inputmode="decimal" min="4" max="25" step="0.5" placeholder="from" aria-label="TWS from (kts)" />
             <span class="suggest-tws-range__dash">–</span>
             <input id="suggestTwsTo" type="number" inputmode="decimal" min="4" max="25" step="0.5" placeholder="to" aria-label="TWS to (kts, optional)" />
             <span class="suggest-tws-range__label">kts</span>
+            <select id="suggestJibSelect" class="suggest-jib-select" aria-label="Jib">
+              <option value="auto">Jib auto</option>
+              <option value="G1">Jib G1</option>
+              <option value="J2">Jib J2</option>
+              <option value="J3">Jib J3</option>
+            </select>
           </div>
           <p class="import-step__hint is-hidden" id="suggestHint">No wind ranges set on the Crossover tab yet for the current mainsail — nothing to suggest from.</p>
           <div id="suggestedSetList" class="suggested-set-list"></div>
@@ -164,6 +177,14 @@
       </div>
 
       <div id="viewCrossover" class="is-hidden">
+        <div class="jib-picker" id="xoverJibPicker" role="group" aria-label="Jib">
+          <span class="jib-picker__label">Jib</span>
+          <button type="button" class="jib-picker__btn" data-jib="all">All</button>
+          <button type="button" class="jib-picker__btn" data-jib="G1">G1</button>
+          <button type="button" class="jib-picker__btn" data-jib="J2">J2</button>
+          <button type="button" class="jib-picker__btn" data-jib="J3">J3</button>
+        </div>
+        <p class="import-step__hint jib-picker__hint" id="xoverJibHint"></p>
         <p class="import-step__hint phone-hide" style="margin-bottom:20px;">
           Pick a position, then use the tabs below for Battens, Chocks, Rake, Rig set up or Lift off
           (bar). Drag each bar to set the true wind speed range it's used for (4&ndash;25kts).
@@ -179,6 +200,7 @@
             </div>
             <div class="xover-subtabs" data-xover-subtabs="artemis">
               <button type="button" class="xover-subtab__btn is-active" data-xover-kind="battens">Battens</button>
+              <button type="button" class="xover-subtab__btn" data-xover-kind="jibs">Jibs</button>
               <button type="button" class="xover-subtab__btn" data-xover-kind="chocks">Chocks</button>
               <button type="button" class="xover-subtab__btn" data-xover-kind="rake">Rake</button>
               <button type="button" class="xover-subtab__btn" data-xover-kind="rigsetup">Rig set up</button>
@@ -197,6 +219,7 @@
             </div>
             <div class="xover-subtabs" data-xover-subtabs="gemera">
               <button type="button" class="xover-subtab__btn is-active" data-xover-kind="battens">Battens</button>
+              <button type="button" class="xover-subtab__btn" data-xover-kind="jibs">Jibs</button>
               <button type="button" class="xover-subtab__btn" data-xover-kind="chocks">Chocks</button>
               <button type="button" class="xover-subtab__btn" data-xover-kind="rake">Rake</button>
               <button type="button" class="xover-subtab__btn" data-xover-kind="rigsetup">Rig set up</button>
@@ -258,6 +281,6 @@
 
   <script src="./data.js?v=20260922n"></script>
   <script src="./firebase-config.js"></script>
-  <script type="module" src="./app.js?v=20261113g"></script>
+  <script type="module" src="./app.js?v=20261113j"></script>
 </body>
 </html>

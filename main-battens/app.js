@@ -86,8 +86,27 @@ import {
     chocks: { label: "Chocks", placeholder: "Chock size, e.g. chock size mm", addLabel: "+ Add chock", noun: "chocks" },
     rake: { label: "Rake", placeholder: "Rake, e.g. X deg", addLabel: "+ Add rake setting", noun: "rake settings" },
     rigsetup: { label: "Rig set up", placeholder: "Rig set up, e.g. Base -1", addLabel: "+ Add rig set up", noun: "rig set-ups" },
-    liftoff: { label: "Lift off (bar)", placeholder: "Lift off, e.g. 24 bar", addLabel: "+ Add lift off", noun: "lift-off settings" }
+    liftoff: { label: "Lift off (bar)", placeholder: "Lift off, e.g. 24 bar", addLabel: "+ Add lift off", noun: "lift-off settings" },
+    jibs: { label: "Jibs", placeholder: "Jib, e.g. J1.5", addLabel: "+ Add jib", noun: "jibs" }
   };
+
+  // ---------- Jibs ----------
+  // One Crossover table per mainsail. Any range can have a different range for one jib
+  // (stored as range.byJib.J2 = {min,max}); everything else is shared by all jibs.
+  var JIBS = ["G1", "J2", "J3"];
+  var DEFAULT_JIB_DEFS = [{ id: "jib-g1", name: "G1" }, { id: "jib-j2", name: "J2" }, { id: "jib-j3", name: "J3" }];
+  var xoverJib = (function () { var v = safeGet("rc44-xover-jib"); return v && (v === "all" || JIBS.indexOf(v) !== -1) ? v : "all"; })();
+  var suggestJib = (function () { var v = safeGet("rc44-suggest-jib"); return v && (v === "auto" || JIBS.indexOf(v) !== -1) ? v : "auto"; })();
+  var activeJib = null; // jib used for the current suggestion (null = shared ranges)
+
+  // The range to use for a jib: its own if it has one, otherwise the shared one.
+  function effRange(r, jib) {
+    if (!r) return null;
+    if (jib && jib !== "all" && r.byJib && r.byJib[jib]) return { min: r.byJib[jib].min, max: r.byJib[jib].max, own: true };
+    if (r.min == null || r.max == null) return null;
+    return { min: r.min, max: r.max, own: false };
+  }
+  function jibOverrides(r) { return r && r.byJib ? Object.keys(r.byJib) : []; }
 
   function ensureXoverPos(boat, sail, pos) {
     var bySail = crossoverData[boat].bySail;
@@ -108,6 +127,16 @@ import {
     Object.keys(CUSTOM_KINDS).forEach(function (k) {
       if (!shared[k]) shared[k] = { defs: [], ranges: {} };
     });
+    // Default jib crossover: G1 up to 10 kts, J2 10–17, J3 above 17. Only set when this main
+    // has no jibs yet, so ranges you've changed are never overwritten.
+    if (!shared.jibs.defs.length) {
+      shared.jibs.defs = DEFAULT_JIB_DEFS.map(function (d) { return { id: d.id, name: d.name }; });
+      shared.jibs.ranges = {
+        "jib-g1": { min: TWS_MIN, max: 10 },
+        "jib-j2": { min: 10, max: 17 },
+        "jib-j3": { min: 17, max: TWS_MAX }
+      };
+    }
     return shared;
   }
 
@@ -695,6 +724,29 @@ import {
     }
   }
 
+  // ---------- Jib pickers (Crossover + Suggest) ----------
+
+  function renderJibPickers() {
+    document.querySelectorAll("#xoverJibPicker .jib-picker__btn").forEach(function (b) { b.classList.toggle("is-active", b.dataset.jib === xoverJib); });
+    document.querySelectorAll("#suggestJibPicker .jib-picker__btn").forEach(function (b) { b.classList.toggle("is-active", b.dataset.jib === suggestJib); });
+    var hint = document.getElementById("xoverJibHint");
+    if (hint) hint.textContent = xoverJib === "all"
+      ? "Ranges for all jibs. Pick a jib to change a bar for that jib only."
+      : xoverJib + ": greyed bars are the same as all jibs. Drag one to change it for " + xoverJib + " only; ↺ puts it back.";
+  }
+  document.querySelectorAll("#xoverJibPicker .jib-picker__btn").forEach(function (b) {
+    b.addEventListener("click", function () { xoverJib = b.dataset.jib; safeSet("rc44-xover-jib", xoverJib); renderJibPickers(); renderCrossoverAll(); });
+  });
+  document.querySelectorAll("#suggestJibPicker .jib-picker__btn").forEach(function (b) {
+    b.addEventListener("click", function () { suggestJib = b.dataset.jib; safeSet("rc44-suggest-jib", suggestJib); renderSuggestedSet(); });
+  });
+  var suggestJibSelect = document.getElementById("suggestJibSelect");
+  if (suggestJibSelect) {
+    suggestJibSelect.value = suggestJib;
+    suggestJibSelect.addEventListener("change", function () { suggestJib = suggestJibSelect.value; safeSet("rc44-suggest-jib", suggestJib); renderSuggestedSet(); });
+  }
+  renderJibPickers();
+
   // ---------- Pick sheet (tap a batten row) ----------
 
   var pickState = null;
@@ -763,7 +815,7 @@ import {
     var results = [];
     var battenRanges = posX.battens || {};
     Object.keys(battenRanges).forEach(function (id) {
-      var r = battenRanges[id];
+      var r = effRange(battenRanges[id], activeJib);
       if (overlaps(r, tws)) {
         var cand = findBatten(boat, pos, id);
         if (cand && !cand.decommissioned) results.push({ id: id, label: cand.name, sub: eiLabel(cand.ei), ei: cand.ei, range: rangeText(r), min: r.min });
@@ -781,7 +833,7 @@ import {
     var ranges = kindData.ranges || {};
     var results = [];
     sortByNum(kindData.defs).forEach(function (d) {
-      var r = ranges[d.id];
+      var r = effRange(ranges[d.id], kind === "jibs" ? null : activeJib);
       if (overlaps(r, tws)) results.push({ id: d.id, label: d.name, sub: "", range: rangeText(r), min: r.min });
     });
     return results;
@@ -917,7 +969,29 @@ import {
 
     var sail = currentSail[boat];
     var sailObj = crossoverData[boat].bySail[sail];
+    // Jib for this suggestion: picked, or (Auto) the jib whose Jibs bar covers the middle of the wind range.
+    activeJib = null;
+    var jibNote = "";
+    if (suggestJib !== "auto") {
+      activeJib = suggestJib;
+    } else {
+      var jm = findSharedSuggestions(boat, "jibs", tws);
+      var mid = (tws.lo + tws.hi) / 2;
+      var jr = sailObj && sailObj.shared && sailObj.shared.jibs ? sailObj.shared.jibs.ranges || {} : {};
+      var pick = jm.filter(function (m) { var r = jr[m.id]; return r && r.min <= mid && r.max >= mid; })[0] || jm[0];
+      if (pick) { activeJib = pick.label; jibNote = " (auto)"; }
+    }
+    renderJibPickers();
+    var autoBtn = document.querySelector('#suggestJibPicker [data-jib="auto"]');
+    if (autoBtn) autoBtn.textContent = suggestJib === "auto" && activeJib ? "Auto · " + activeJib : "Auto";
+    var jibSel = document.getElementById("suggestJibSelect");
+    if (jibSel) {
+      jibSel.value = suggestJib;
+      jibSel.options[0].textContent = suggestJib === "auto" && activeJib ? "Auto: " + activeJib : "Jib auto";
+    }
+
     var customKindsWithData = Object.keys(CUSTOM_KINDS).filter(function (k) {
+      if (k === "jibs") return false;
       return sailObj && sailObj.shared && sailObj.shared[k] && sailObj.shared[k].defs && sailObj.shared[k].defs.length;
     });
     var anyBattenRanges = POSITIONS.some(function (pos) {
@@ -1473,6 +1547,7 @@ import {
     }
 
     var store = kind === "battens" ? slot.battens : shared[kind].ranges;
+    var jib = kind === "jibs" ? "all" : xoverJib;
 
     rows.forEach(function (r) {
       var row = document.createElement("div");
@@ -1480,7 +1555,12 @@ import {
 
       var label = document.createElement("div");
       label.className = "xover-row__label";
-      label.innerHTML = escapeHtml(r.label) + (r.sub ? "<span class='xover-row__ei'>" + escapeHtml(r.sub) + "</span>" : "");
+      var stored = store[r.id];
+      var eff = effRange(stored, jib);
+      var tag = "";
+      if (jib !== "all" && eff && eff.own) tag = "<span class='jib-tag'>" + jib + " only</span>";
+      else if (jib === "all" && jibOverrides(stored).length) tag = "<span class='jib-tag jib-tag--muted'>" + jibOverrides(stored).join(", ") + " differs</span>";
+      label.innerHTML = escapeHtml(r.label) + (r.sub ? "<span class='xover-row__ei'>" + escapeHtml(r.sub) + "</span>" : "") + tag;
       row.appendChild(label);
 
       var track = document.createElement("div");
@@ -1503,18 +1583,36 @@ import {
 
       chart.appendChild(row);
 
-      renderRangeTrack(track, store[r.id] || null, function (min, max) {
-        store[r.id] = { min: min, max: max };
+      renderRangeTrack(track, eff ? { min: eff.min, max: eff.max } : null, function (min, max) {
+        var cur = store[r.id] || {};
+        if (jib === "all") {
+          cur.min = min; cur.max = max;
+        } else {
+          if (!cur.byJib) cur.byJib = {};
+          cur.byJib[jib] = { min: min, max: max };
+        }
+        store[r.id] = cur;
         saveCrossover(boat);
         renderXoverChart(boat);
       }, function () {
-        delete store[r.id];
+        var cur = store[r.id];
+        if (!cur) return;
+        if (jib === "all") { delete cur.min; delete cur.max; }
+        else if (cur.byJib) { delete cur.byJib[jib]; if (!Object.keys(cur.byJib).length) delete cur.byJib; }
+        if (cur.min == null && !cur.byJib) delete store[r.id];
         saveCrossover(boat);
         renderXoverChart(boat);
       });
+      if (jib !== "all" && eff && !eff.own) track.classList.add("is-inherited");
       // The × sits next to the name, away from the drag handles, so it isn't hit by accident.
       var clearBtn = track.querySelector(".xover-range__clear");
-      if (clearBtn) label.appendChild(clearBtn);
+      if (clearBtn) {
+        if (jib !== "all" && eff && !eff.own) clearBtn.remove();          // nothing of this jib's own to clear
+        else {
+          if (jib !== "all") { clearBtn.title = "Back to the range for all jibs"; clearBtn.classList.add("is-reset"); clearBtn.textContent = "↺"; }
+          label.appendChild(clearBtn);
+        }
+      }
     });
   }
 

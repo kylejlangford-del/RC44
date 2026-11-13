@@ -291,11 +291,24 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gsta
       var tws = (e.twsMin != null || e.twsMax != null)
         ? (e.twsMin != null ? e.twsMin : "?") + "–" + (e.twsMax != null ? e.twsMax : "?") + " kts" : "";
       var meta = [e.session, tws].filter(Boolean).map(esc).join(" · ");
+      // Wind from Njord (Gemera's instruments), written into the entry by Claude.
+      var nj = e.njord;
+      var njHtml = "";
+      if (nj && (nj.twsAvg != null || nj.twd != null)) {
+        var f = function (n) { return n == null ? "–" : (Math.round(n * 10) / 10).toString(); };
+        njHtml = '<div class="log-njord"><span class="log-njord__src">Njord · Gemera</span>' +
+          '<span class="log-kv"><span>TWS</span><strong>' + f(nj.twsMin) + ' / ' + f(nj.twsAvg) + ' / ' + f(nj.twsMax) + ' kts</strong></span>' +
+          (nj.twd != null ? '<span class="log-kv"><span>TWD</span><strong>' + Math.round(nj.twd) + '°' +
+            (nj.twdMin != null && nj.twdMax != null ? ' (' + Math.round(nj.twdMin) + '–' + Math.round(nj.twdMax) + '°)' : '') + '</strong></span>' : '') +
+          (nj.window ? '<span class="log-njord__win">' + esc(nj.window) + '</span>' : '') +
+          '</div>';
+      }
       return '<article class="panel log-entry" data-id="' + esc(e.id) + '">' +
         '<header class="log-entry__head"><div><strong>' + esc(niceDate(e.date)) + '</strong>' +
         (meta ? '<span class="log-entry__meta">' + meta + '</span>' : '') + '</div>' +
         '<div class="log-entry__actions"><button type="button" class="log-link" data-edit="' + esc(e.id) + '">Edit</button>' +
         '<button type="button" class="log-link log-link--danger" data-del="' + esc(e.id) + '">Delete</button></div></header>' +
+        njHtml +
         '<div class="log-boats">' + BOATS.map(function (b) { return boatBlock(b, e.boats && e.boats[b]); }).join("") + '</div>' +
         '<footer class="log-entry__foot">Logged by ' + esc(e.createdBy || "someone") +
         (e.updatedBy && e.updatedBy !== e.createdBy ? " · edited by " + esc(e.updatedBy) : "") + '</footer>' +

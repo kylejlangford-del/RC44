@@ -2776,3 +2776,40 @@ textarea.log-input { resize: vertical; }
   .xover-row__label .xover-range__clear { width: 28px; height: 28px; font-size: .95rem; }
   .boat-filter-toggle .view-toggle__btn { min-height: 36px; }
 }
+.log-njord { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -2px 0 12px; }
+.log-njord__src { font-size: .68rem; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); margin-right: 2px; }
+.log-njord__win { font-size: .72rem; color: var(--muted); }
+
+/* Jib picker (Crossover + Suggest) */
+.jib-picker { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 8px; }
+.jib-picker__label { font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-right: 2px; }
+.jib-picker__btn {
+  font: inherit; font-size: .82rem; font-weight: 600;
+  min-height: 34px; min-width: 44px; padding: 4px 12px;
+  border-radius: 999px; border: 1px solid var(--line);
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.jib-picker__btn.is-active { background: #ffd38a; border-color: #ffd38a; color: #2a1d05; }
+.jib-picker__hint { margin: 0 0 12px; font-size: .76rem; }
+.jib-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: .62rem; font-weight: 700; background: #ffd38a; color: #2a1d05; vertical-align: 1px; }
+.jib-tag--muted { background: rgba(255, 211, 138, .14); color: #ffd38a; }
+.xover-track.is-inherited .xover-range { opacity: .38; filter: grayscale(.6); }
+.xover-range__clear.is-reset { font-size: .9rem; }
+@media (max-width: 600px) {
+  .jib-picker--suggest { margin-bottom: 4px; }
+  .jib-picker__hint { font-size: .7rem; }
+}
+.suggest-jib-select { display: none; }
+@media (max-width: 600px) {
+  .jib-picker--suggest { display: none; }
+  .suggest-jib-select {
+    display: block; margin-left: auto;
+    font: inherit; font-size: 16px; font-weight: 600;
+    padding: 6px 8px; border-radius: 10px;
+    border: 1px solid #ffd38a; background: rgba(255, 211, 138, .1); color: #ffd38a;
+    max-width: 128px;
+  }
+  .suggest-tws-range .suggest-tws-range__label:first-child { display: none; }
+  .suggest-tws-range { gap: 6px; }
+  .suggest-tws-range input { width: 64px; }
+}
