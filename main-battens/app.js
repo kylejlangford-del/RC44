@@ -687,6 +687,11 @@ import {
   // Returns EVERY batten in a boat/position whose Crossover wind range covers the TWS entered —
   // there can be more than one (e.g. two battens with overlapping ranges).
 
+  // tws is {lo, hi} (one speed: lo === hi). A crossover range matches if it overlaps it.
+  function fmtKts(n) { return (Math.round(n * 10) / 10).toString(); }
+  function overlaps(r, tws) { return r && r.min <= tws.hi && r.max >= tws.lo; }
+  function rangeText(r) { return fmtKts(r.min) + "–" + fmtKts(r.max) + " kts"; }
+
   function findBattenSuggestions(boat, pos, tws) {
     var sail = currentSail[boat];
     var posX = crossoverData[boat].bySail[sail] && crossoverData[boat].bySail[sail][pos];
@@ -695,9 +700,9 @@ import {
     var battenRanges = posX.battens || {};
     Object.keys(battenRanges).forEach(function (id) {
       var r = battenRanges[id];
-      if (tws >= r.min && tws <= r.max) {
+      if (overlaps(r, tws)) {
         var cand = findBatten(boat, pos, id);
-        if (cand && !cand.decommissioned) results.push({ id: id, label: cand.name, sub: eiLabel(cand.ei), ei: cand.ei });
+        if (cand && !cand.decommissioned) results.push({ id: id, label: cand.name, sub: eiLabel(cand.ei), ei: cand.ei, range: rangeText(r), min: r.min });
       }
     });
     return sortByEi(results);
@@ -713,7 +718,7 @@ import {
     var results = [];
     sortByNum(kindData.defs).forEach(function (d) {
       var r = ranges[d.id];
-      if (r && tws >= r.min && tws <= r.max) results.push({ id: d.id, label: d.name, sub: "" });
+      if (overlaps(r, tws)) results.push({ id: d.id, label: d.name, sub: "", range: rangeText(r), min: r.min });
     });
     return results;
   }
@@ -732,13 +737,14 @@ import {
     if (!matches.length) {
       var none = document.createElement("span");
       none.className = "suggested-set-group__none";
-      none.textContent = "No suggestion for this TWS";
+      none.textContent = "No suggestion for this wind";
       group.appendChild(none);
       return group;
     }
 
+    var showRange = matches.length > 1;
     matches.forEach(function (m) {
-      var text = m.label + (m.sub ? " · " + m.sub : "");
+      var text = m.label + (m.sub ? " · " + m.sub : "") + (showRange && m.range ? "  (" + m.range + ")" : "");
       if (actionFor) {
         var action = actionFor(m);
         var btn = document.createElement("button");
@@ -832,8 +838,13 @@ import {
     var boat = suggestBoat;
 
     var suggestInput = document.getElementById("suggestTws");
-    var tws = suggestInput ? parseFloat(suggestInput.value) : NaN;
-    var hasTws = !isNaN(tws);
+    var suggestTo = document.getElementById("suggestTwsTo");
+    var twsA = suggestInput ? parseFloat(suggestInput.value) : NaN;
+    var twsB = suggestTo ? parseFloat(suggestTo.value) : NaN;
+    if (isNaN(twsA) && !isNaN(twsB)) twsA = twsB;
+    if (isNaN(twsB)) twsB = twsA;
+    var hasTws = !isNaN(twsA);
+    var tws = { lo: Math.min(twsA, twsB), hi: Math.max(twsA, twsB) };
 
     if (!hasTws) {
       if (suggestHint) suggestHint.classList.add("is-hidden");
@@ -962,6 +973,8 @@ import {
 
   var suggestTwsInput = document.getElementById("suggestTws");
   if (suggestTwsInput) suggestTwsInput.addEventListener("input", renderSuggestedSet);
+  var suggestTwsToInput = document.getElementById("suggestTwsTo");
+  if (suggestTwsToInput) suggestTwsToInput.addEventListener("input", renderSuggestedSet);
 
   applyBoatFilter();
 

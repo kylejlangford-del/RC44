@@ -2574,3 +2574,5 @@ textarea.log-input { resize: vertical; }
   .event-mains-bar { gap: 4px 10px; font-size: .78rem; }
   .event-mains-bar__more { margin-left: 0; }
 }
+.suggest-tws-range { display: flex; flex-wrap: wrap; gap: 10px; }
+.suggest-tws-range .suggest-tws { flex: 1 1 130px; max-width: 200px; }
