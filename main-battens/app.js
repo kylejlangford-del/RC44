@@ -682,7 +682,7 @@ import {
     var otherBoat = boat === "artemis" ? "gemera" : "artemis";
     var otherSlot = slotsFor(otherBoat)[pos];
     var o = otherSlot.installed ? findBatten(otherBoat, pos, otherSlot.installed) : null;
-    if (boatFilter === "both" && b && o && typeof b.ei === "number" && typeof o.ei === "number" && b.ei !== o.ei) {
+    if (b && o && typeof b.ei === "number" && typeof o.ei === "number" && b.ei !== o.ei) {
       var d = b.ei - o.ei;
       var maxAbs = eiMaxAbsDelta() || Math.abs(d);
       var alpha = 0.55 + 0.35 * Math.min(1, Math.abs(d) / maxAbs);
