@@ -11,20 +11,21 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="RC44" />
   <title>Main Battens · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20261113e" />
+  <link rel="stylesheet" href="../styles.css?v=20261113f" />
 </head>
-<body>
+<body class="page-battens">
   <div class="bg-glow bg-glow--one"></div>
   <div class="bg-glow bg-glow--two"></div>
 
   <main class="site-shell">
-    <header class="topbar">
+    <header class="topbar topbar--menu">
       <a class="brand" href="../" aria-label="Back to RC44 Lab">
         <img src="../assets/seagull-lab-logo.png?v=20260925c" alt="Seagull Data" />
         <span class="brand__divider"></span>
         <span class="brand__label">RC44</span>
       </a>
       <div class="title-block"><span>Artemis &amp; Gemera</span><strong>Main Battens</strong></div>
+      <button type="button" class="ghost-button topbar-more" id="topbarMore" aria-expanded="false" aria-label="More">⋯</button>
       <div class="header-actions">
         <label class="name-field"><span>Editing as</span><input id="editorName" type="text" placeholder="Your name" /></label>
         <button id="downloadDataBtn" class="ghost-button" type="button">Download backup</button>
@@ -33,9 +34,9 @@
     </header>
 
     <div class="page">
-      <div class="section-kicker">Inventory</div>
-      <h1>Main battens</h1>
-      <p class="intro">
+      <div class="section-kicker phone-hide">Inventory</div>
+      <h1 class="phone-hide">Main battens</h1>
+      <p class="intro phone-hide">
         Select which of the 6 mainsail battens is installed on each boat and compare Artemis vs Gemera by
         name and EI (stiffness) side by side. Edits sync live between devices — whoever last saved a boat's
         list is shown under its column, with a button to re-confirm it's still current even when nothing
@@ -72,10 +73,11 @@
         </div>
       </section>
 
-      <div class="view-toggle" role="tablist" id="mainViewToggle">
-        <button class="view-toggle__btn is-active" type="button" data-view="comparison">Comparison</button>
-        <button class="view-toggle__btn" type="button" data-view="inventory">Full inventory</button>
-        <button class="view-toggle__btn" type="button" data-view="crossover">Crossover</button>
+      <div class="view-toggle main-tabs" role="tablist" id="mainViewToggle">
+        <button class="view-toggle__btn is-active" type="button" data-view="comparison"><span class="main-tabs__icon">≡</span>Battens</button>
+        <button class="view-toggle__btn" type="button" data-view="suggest"><span class="main-tabs__icon">◎</span>Suggest</button>
+        <button class="view-toggle__btn" type="button" data-view="inventory"><span class="main-tabs__icon">▤</span>Inventory</button>
+        <button class="view-toggle__btn" type="button" data-view="crossover"><span class="main-tabs__icon">⇆</span>Crossover</button>
       </div>
 
       <div class="view-toggle boat-filter-toggle" role="tablist" id="boatFilterToggle">
@@ -114,20 +116,20 @@
           </div>
         </section>
 
+      </div>
+
+      <div id="viewSuggest" class="is-hidden">
         <section class="panel" id="suggestedSetPanel">
           <div class="boat-col__head" style="justify-content:space-between;">
-            <h2 style="margin-top:0;">Suggested set up</h2>
+            <h2 style="margin-top:0;" class="phone-hide">Suggested set up</h2>
             <div class="sail-toggle" id="suggestBoatToggle"></div>
           </div>
           <div class="suggest-tws-range">
-            <label class="field-inline suggest-tws">
-              <span>TWS from (kts)</span>
-              <input id="suggestTws" type="number" inputmode="decimal" min="4" max="25" step="0.5" placeholder="e.g. 10" />
-            </label>
-            <label class="field-inline suggest-tws">
-              <span>to (optional)</span>
-              <input id="suggestTwsTo" type="number" inputmode="decimal" min="4" max="25" step="0.5" placeholder="e.g. 14" />
-            </label>
+            <span class="suggest-tws-range__label">TWS</span>
+            <input id="suggestTws" type="number" inputmode="decimal" min="4" max="25" step="0.5" placeholder="from" aria-label="TWS from (kts)" />
+            <span class="suggest-tws-range__dash">–</span>
+            <input id="suggestTwsTo" type="number" inputmode="decimal" min="4" max="25" step="0.5" placeholder="to" aria-label="TWS to (kts, optional)" />
+            <span class="suggest-tws-range__label">kts</span>
           </div>
           <p class="import-step__hint is-hidden" id="suggestHint">No wind ranges set on the Crossover tab yet for the current mainsail — nothing to suggest from.</p>
           <div id="suggestedSetList" class="suggested-set-list"></div>
@@ -162,7 +164,7 @@
       </div>
 
       <div id="viewCrossover" class="is-hidden">
-        <p class="import-step__hint" style="margin-bottom:20px;">
+        <p class="import-step__hint phone-hide" style="margin-bottom:20px;">
           Pick a position, then use the tabs below for Battens, Chocks, Rake, Rig set up or Lift off
           (bar). Drag each bar to set the true wind speed range it's used for (4&ndash;25kts).
         </p>
@@ -208,6 +210,18 @@
     </div>
   </main>
 
+  <div id="pickSheet" class="dialog sheet is-hidden">
+    <div class="dialog__backdrop" data-sheet-close></div>
+    <div class="dialog__panel sheet__panel">
+      <div class="dialog__head">
+        <h2 id="pickTitle">B1</h2>
+        <button class="text-link" type="button" data-sheet-close>Close</button>
+      </div>
+      <div id="pickList" class="pick-list"></div>
+      <button id="pickManage" class="ghost-button pick-manage" type="button">Manage inventory</button>
+    </div>
+  </div>
+
   <div id="manageDialog" class="dialog is-hidden">
     <div class="dialog__backdrop"></div>
     <div class="dialog__panel">
@@ -244,6 +258,6 @@
 
   <script src="./data.js?v=20260922n"></script>
   <script src="./firebase-config.js"></script>
-  <script type="module" src="./app.js?v=20261113e"></script>
+  <script type="module" src="./app.js?v=20261113f"></script>
 </body>
 </html>

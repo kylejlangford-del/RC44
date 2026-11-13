@@ -68,7 +68,10 @@ import {
   // never synced: this is purely a display filter, not a data change.
   var boatFilter = (function () {
     var saved = safeGet(BOAT_FILTER_KEY);
-    return ["both", "artemis", "gemera"].indexOf(saved) !== -1 ? saved : "both";
+    if (["both", "artemis", "gemera"].indexOf(saved) !== -1) return saved;
+    // Phones open on one boat (Gemera) so its six battens fit on one screen.
+    var phone = window.matchMedia && window.matchMedia("(max-width: 600px)").matches;
+    return phone ? "gemera" : "both";
   })();
 
   // ---------- Crossover (wind-range charts): battens & chocks vs TWS, per boat/mainsail/position ----------
@@ -256,7 +259,7 @@ import {
       }
       if (migrateSharedCrossover(boat)) saveCrossover(boat);
       if (currentView === "crossover") renderXoverChart(boat);
-      if (currentView === "comparison") renderSuggestedSet();
+      if (currentView === "suggest") renderSuggestedSet();
     }, function (err) {
       console.error("Crossover sync error for " + boat, err);
     });
@@ -469,16 +472,39 @@ import {
 
   // ---------- View toggle ----------
 
-  document.querySelectorAll("#mainViewToggle .view-toggle__btn").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      document.querySelectorAll("#mainViewToggle .view-toggle__btn").forEach(function (b) { b.classList.toggle("is-active", b === btn); });
-      currentView = btn.dataset.view;
-      document.getElementById("viewComparison").classList.toggle("is-hidden", currentView !== "comparison");
-      document.getElementById("viewInventory").classList.toggle("is-hidden", currentView !== "inventory");
-      document.getElementById("viewCrossover").classList.toggle("is-hidden", currentView !== "crossover");
-      if (currentView === "inventory") renderFullInventory();
-      if (currentView === "crossover") renderCrossoverAll();
+  // Battens · Suggest · Inventory · Crossover. On a phone these are the tab bar at the bottom.
+  // The last tab used is remembered on this device only.
+  var VIEW_KEY = "rc44-battens-view";
+  var VIEW_IDS = { comparison: "viewComparison", suggest: "viewSuggest", inventory: "viewInventory", crossover: "viewCrossover" };
+
+  function setView(view) {
+    if (!VIEW_IDS[view]) view = "comparison";
+    currentView = view;
+    safeSet(VIEW_KEY, view);
+    document.querySelectorAll("#mainViewToggle .view-toggle__btn").forEach(function (b) {
+      b.classList.toggle("is-active", b.dataset.view === view);
     });
+    Object.keys(VIEW_IDS).forEach(function (v) {
+      document.getElementById(VIEW_IDS[v]).classList.toggle("is-hidden", v !== view);
+    });
+    if (view === "suggest") renderSuggestedSet();
+    if (view === "inventory") renderFullInventory();
+    if (view === "crossover") renderCrossoverAll();
+    window.scrollTo(0, 0);
+  }
+
+  document.querySelectorAll("#mainViewToggle .view-toggle__btn").forEach(function (btn) {
+    btn.addEventListener("click", function () { setView(btn.dataset.view); });
+  });
+  if (safeGet(VIEW_KEY) && safeGet(VIEW_KEY) !== "comparison") setView(safeGet(VIEW_KEY));
+
+  // Phone: name box, backup and Home live behind the ⋯ button.
+  var moreBtn = document.getElementById("topbarMore");
+  if (moreBtn) moreBtn.addEventListener("click", function () {
+    var tb = moreBtn.closest(".topbar");
+    var open = !tb.classList.contains("is-menu-open");
+    tb.classList.toggle("is-menu-open", open);
+    moreBtn.setAttribute("aria-expanded", open ? "true" : "false");
   });
 
   document.querySelectorAll("[data-add-batten]").forEach(function (btn) {
@@ -597,26 +623,19 @@ import {
         num.textContent = "B" + pos;
         wrap.appendChild(num);
 
-        var select = document.createElement("select");
-        select.setAttribute("aria-label", "Batten " + pos + " installed on " + data[boat].boatLabel);
-        var noneOpt = document.createElement("option");
-        noneOpt.value = "";
-        noneOpt.textContent = "— none selected —";
-        select.appendChild(noneOpt);
-
-        sortByEi(slot.battens).forEach(function (b) {
-          if (b.decommissioned) return;
-          var opt = document.createElement("option");
-          opt.value = b.id;
-          opt.textContent = battenOptionLabel(b);
-          select.appendChild(opt);
-        });
-        select.value = slot.installed || "";
-        select.addEventListener("change", function () {
-          slot.installed = select.value || null;
-          saveBoat(boat);
-        });
-        wrap.appendChild(select);
+        // One tappable row per batten: name in full (wraps to 2 lines) + EI. Tap opens a
+        // sheet to pick a different batten or manage the inventory for this slot.
+        wrap.classList.add("is-button");
+        wrap.setAttribute("role", "button");
+        wrap.tabIndex = 0;
+        var installed = slot.installed ? findBatten(boat, pos, slot.installed) : null;
+        var name = document.createElement("div");
+        name.className = "batten-slot__name";
+        name.textContent = installed ? installed.name : "None set — tap to choose";
+        if (!installed) name.classList.add("is-empty");
+        wrap.appendChild(name);
+        wrap.addEventListener("click", function () { openPick(boat, pos); });
+        wrap.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPick(boat, pos); } });
 
         var ei = document.createElement("div");
         ei.className = "batten-slot__ei";
@@ -624,13 +643,6 @@ import {
         wrap.appendChild(ei);
 
         col.appendChild(wrap);
-
-        var manageRow = document.createElement("button");
-        manageRow.type = "button";
-        manageRow.className = "text-link batten-slot__manage";
-        manageRow.textContent = "Manage B" + pos + " inventory (" + slot.battens.length + ")";
-        manageRow.addEventListener("click", function () { openManage(boat, pos); });
-        col.appendChild(manageRow);
 
         renderEi(boat, pos);
       });
@@ -670,18 +682,70 @@ import {
     var otherBoat = boat === "artemis" ? "gemera" : "artemis";
     var otherSlot = slotsFor(otherBoat)[pos];
     var o = otherSlot.installed ? findBatten(otherBoat, pos, otherSlot.installed) : null;
-    if (b && o && typeof b.ei === "number" && typeof o.ei === "number" && b.ei !== o.ei) {
+    if (boatFilter === "both" && b && o && typeof b.ei === "number" && typeof o.ei === "number" && b.ei !== o.ei) {
       var d = b.ei - o.ei;
       var maxAbs = eiMaxAbsDelta() || Math.abs(d);
       var alpha = 0.55 + 0.35 * Math.min(1, Math.abs(d) / maxAbs);
       var badge = document.createElement("span");
       badge.className = "batten-slot__delta";
-      badge.textContent = (d > 0 ? "+" : "") + d;
+      badge.textContent = "vs " + (otherBoat === "artemis" ? "Art " : "Gem ") + (d > 0 ? "+" : "") + d;
       badge.style.color = d > 0 ? "rgba(255,140,140," + alpha + ")" : "rgba(120,235,170," + alpha + ")";
       badge.title = (d > 0 ? "Stiffer" : "Softer") + " than " + (otherBoat === "artemis" ? "Artemis" : "Gemera") + " here by " + Math.abs(d) + " EI";
       el.appendChild(badge);
     }
   }
+
+  // ---------- Pick sheet (tap a batten row) ----------
+
+  var pickState = null;
+  var pickSheet = document.getElementById("pickSheet");
+
+  function openPick(boat, pos) {
+    pickState = { boat: boat, pos: pos };
+    renderPick();
+    pickSheet.classList.remove("is-hidden");
+  }
+
+  function closePick() {
+    pickSheet.classList.add("is-hidden");
+    pickState = null;
+  }
+
+  function renderPick() {
+    if (!pickState) return;
+    var boat = pickState.boat, pos = pickState.pos;
+    var slot = slotsFor(boat)[pos];
+    document.getElementById("pickTitle").textContent =
+      (data[boat].boatLabel || boat) + " " + currentSail[boat] + " · B" + pos;
+    var list = document.getElementById("pickList");
+    list.innerHTML = "";
+    var opts = [{ id: "", name: "None", ei: null }].concat(sortByEi(slot.battens.filter(function (b) { return !b.decommissioned; })));
+    opts.forEach(function (b) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      var on = (slot.installed || "") === b.id;
+      btn.className = "pick-item" + (on ? " is-on" : "");
+      btn.innerHTML = '<span class="pick-item__check">' + (on ? "●" : "○") + '</span>' +
+        '<span class="pick-item__name">' + escapeHtml(b.name) + (b.notes ? '<small>' + escapeHtml(b.notes) + '</small>' : '') + '</span>' +
+        '<span class="pick-item__ei">' + (b.id ? escapeHtml(eiLabel(b.ei)) : "") + '</span>';
+      btn.addEventListener("click", function () {
+        slot.installed = b.id || null;
+        saveBoat(boat);
+        render();
+        renderSuggestedSet();
+        closePick();
+      });
+      list.appendChild(btn);
+    });
+    document.getElementById("pickManage").textContent = "Manage B" + pos + " inventory (" + slot.battens.length + ")";
+  }
+
+  pickSheet.querySelectorAll("[data-sheet-close]").forEach(function (el) { el.addEventListener("click", closePick); });
+  document.getElementById("pickManage").addEventListener("click", function () {
+    var st = pickState;
+    closePick();
+    if (st) openManage(st.boat, st.pos);
+  });
 
   // ---------- Suggested set up (TWS-based, below the comparison) ----------
   // Returns EVERY batten in a boat/position whose Crossover wind range covers the TWS entered —
@@ -690,7 +754,7 @@ import {
   // tws is {lo, hi} (one speed: lo === hi). A crossover range matches if it overlaps it.
   function fmtKts(n) { return (Math.round(n * 10) / 10).toString(); }
   function overlaps(r, tws) { return r && r.min <= tws.hi && r.max >= tws.lo; }
-  function rangeText(r) { return fmtKts(r.min) + "–" + fmtKts(r.max) + " kts"; }
+  function rangeText(r) { return fmtKts(r.min) + "–" + fmtKts(r.max) + "kt"; }
 
   function findBattenSuggestions(boat, pos, tws) {
     var sail = currentSail[boat];
@@ -900,7 +964,7 @@ import {
       anyRowShown = true;
 
       var row = document.createElement("div");
-      row.className = "suggested-set-row";
+      row.className = "suggested-set-row suggested-set-row--battens";
 
       var battenMatches = findBattenSuggestions(boat, pos, tws);
 
@@ -918,9 +982,15 @@ import {
       if (status !== "none") {
         var mark = document.createElement("span");
         mark.className = "suggest-status suggest-status--" + status;
-        mark.textContent = status === "keep" ? "✓ Keep" : "⇄ Change";
+        mark.innerHTML = status === "keep" ? '✓<span class="suggest-status__word"> Keep</span>' : '⇄<span class="suggest-status__word"> Change</span>';
         mark.title = status === "keep" ? "The batten in the sail now is suggested — leave it" : "Swap to a suggested batten";
         head.appendChild(mark);
+      }
+      if (status === "change" && installedB) {
+        var nowEi = document.createElement("span");
+        nowEi.className = "suggest-now-ei";
+        nowEi.textContent = "now " + eiLabel(installedB.ei);
+        head.appendChild(nowEi);
       }
       row.appendChild(head);
 
@@ -1263,6 +1333,18 @@ import {
       return clamp(TWS_MIN + pct * (TWS_MAX - TWS_MIN));
     }
 
+    // Tap the bar (no drag) to type the range instead, e.g. "7-17.5".
+    function typeRange() {
+      var v = prompt("Wind range in knots (from–to), e.g. 7-17.5", cur.min + "-" + cur.max);
+      if (v === null) return;
+      var m = String(v).replace(/,/g, ".").match(/(\d+(?:\.\d+)?)\s*[-–to ]+\s*(\d+(?:\.\d+)?)/);
+      if (!m) { alert("Couldn't read that — use two numbers, e.g. 7-17.5"); return; }
+      var a = clamp(snap(parseFloat(m[1]))), b = clamp(snap(parseFloat(m[2])));
+      if (a > b) { var t = a; a = b; b = t; }
+      if (b - a < 0.5) b = clamp(a + 0.5);
+      onCommit(a, b);
+    }
+
     function bindDrag(el, mode) {
       el.addEventListener("pointerdown", function (e) {
         e.preventDefault();
@@ -1270,6 +1352,10 @@ import {
         el.setPointerCapture(e.pointerId);
         var startX = e.clientX;
         var startMin = cur.min, startMax = cur.max;
+        var moved = false;
+        el.addEventListener("pointermove", function markMoved(ev) {
+          if (Math.abs(ev.clientX - startX) > 4) { moved = true; el.removeEventListener("pointermove", markMoved); }
+        });
 
         function onMove(ev) {
           if (mode === "left") {
@@ -1290,6 +1376,7 @@ import {
         function onUp() {
           el.removeEventListener("pointermove", onMove);
           el.removeEventListener("pointerup", onUp);
+          if (mode === "move" && !moved) { typeRange(); return; }
           onCommit(cur.min, cur.max);
         }
         el.addEventListener("pointermove", onMove);
@@ -1425,6 +1512,9 @@ import {
         saveCrossover(boat);
         renderXoverChart(boat);
       });
+      // The × sits next to the name, away from the drag handles, so it isn't hit by accident.
+      var clearBtn = track.querySelector(".xover-range__clear");
+      if (clearBtn) label.appendChild(clearBtn);
     });
   }
 
