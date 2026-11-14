@@ -11,7 +11,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="RC44" />
   <title>Main Battens · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20261113j" />
+  <link rel="stylesheet" href="../styles.css?v=20261114a" />
 </head>
 <body class="page-battens">
   <div class="bg-glow bg-glow--one"></div>
@@ -176,13 +176,14 @@
         </section>
       </div>
 
-      <div id="viewCrossover" class="is-hidden">
+      <div id="viewCrossover" class="is-hidden xover-locked">
         <div class="jib-picker" id="xoverJibPicker" role="group" aria-label="Jib">
           <span class="jib-picker__label">Jib</span>
           <button type="button" class="jib-picker__btn" data-jib="all">All</button>
           <button type="button" class="jib-picker__btn" data-jib="G1">G1</button>
           <button type="button" class="jib-picker__btn" data-jib="J2">J2</button>
           <button type="button" class="jib-picker__btn" data-jib="J3">J3</button>
+          <button type="button" class="xover-edit-btn" id="xoverEditBtn">✎ Edit</button>
         </div>
         <p class="import-step__hint jib-picker__hint" id="xoverJibHint"></p>
         <p class="import-step__hint phone-hide" style="margin-bottom:20px;">
@@ -281,6 +282,6 @@
 
   <script src="./data.js?v=20260922n"></script>
   <script src="./firebase-config.js"></script>
-  <script type="module" src="./app.js?v=20261113j"></script>
+  <script type="module" src="./app.js?v=20261114a"></script>
 </body>
 </html>

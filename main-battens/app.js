@@ -508,6 +508,7 @@ import {
 
   function setView(view) {
     if (!VIEW_IDS[view]) view = "comparison";
+    if (view !== "crossover") setXoverEditing(false);
     currentView = view;
     safeSet(VIEW_KEY, view);
     document.querySelectorAll("#mainViewToggle .view-toggle__btn").forEach(function (b) {
@@ -724,13 +725,31 @@ import {
     }
   }
 
+  // ---------- Crossover edit lock ----------
+  // Crossover opens locked so a scroll or stray tap can't move a bar. "Edit" unlocks it on this
+  // device; "Done" (or leaving the tab) locks it again.
+  var xoverEditing = false;
+  var xoverEditBtn = document.getElementById("xoverEditBtn");
+  function setXoverEditing(on) {
+    xoverEditing = !!on;
+    var v = document.getElementById("viewCrossover");
+    if (v) v.classList.toggle("xover-locked", !xoverEditing);
+    if (xoverEditBtn) {
+      xoverEditBtn.textContent = xoverEditing ? "🔒 Done" : "✎ Edit";
+      xoverEditBtn.classList.toggle("is-editing", xoverEditing);
+    }
+    renderJibPickers();
+  }
+  if (xoverEditBtn) xoverEditBtn.addEventListener("click", function () { setXoverEditing(!xoverEditing); });
+
   // ---------- Jib pickers (Crossover + Suggest) ----------
 
   function renderJibPickers() {
     document.querySelectorAll("#xoverJibPicker .jib-picker__btn").forEach(function (b) { b.classList.toggle("is-active", b.dataset.jib === xoverJib); });
     document.querySelectorAll("#suggestJibPicker .jib-picker__btn").forEach(function (b) { b.classList.toggle("is-active", b.dataset.jib === suggestJib); });
     var hint = document.getElementById("xoverJibHint");
-    if (hint) hint.textContent = xoverJib === "all"
+    if (hint && !xoverEditing) hint.textContent = "Locked — tap ✎ Edit to change ranges.";
+    else if (hint) hint.textContent = xoverJib === "all"
       ? "Ranges for all jibs. Pick a jib to change a bar for that jib only."
       : xoverJib + ": greyed bars are the same as all jibs. Drag one to change it for " + xoverJib + " only; ↺ puts it back.";
   }

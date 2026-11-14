@@ -2816,3 +2816,19 @@ textarea.log-input { resize: vertical; }
 .rig-note--tune { border-color: rgba(255, 211, 138, .4); }
 .rig-note--tune header strong { color: #ffd38a; }
 .rig-note li strong { color: var(--text); }
+
+/* Crossover edit lock: nothing can be dragged, added or removed until Edit is tapped */
+.xover-edit-btn {
+  margin-left: auto;
+  font: inherit; font-size: .82rem; font-weight: 600;
+  min-height: 34px; padding: 4px 14px;
+  border-radius: 999px; border: 1px solid var(--accent);
+  background: transparent; color: var(--accent); cursor: pointer;
+}
+.xover-edit-btn.is-editing { background: var(--accent); color: #04211f; }
+.xover-locked .xover-track { pointer-events: none; }
+.xover-locked .xover-handle { display: none; }
+.xover-locked .xover-empty-hint { visibility: hidden; }
+.xover-locked .add-chock-form,
+.xover-locked .xover-row__remove,
+.xover-locked .xover-range__clear { display: none !important; }
