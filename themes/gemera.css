@@ -209,3 +209,5 @@ html.theme-gemera .rig-table--tws th:first-child { background: #1f2327; }
 html.theme-gemera .xover-range__clear { background: #23272b; }
 html.theme-gemera .cal-point, html.theme-gemera .draft-endpoint { stroke: #15181b; }
 html.theme-gemera.theme-light .xover-range__clear { background: #ffffff; }
+html.theme-gemera.theme-light .log-setup-btn--wide.is-logged { border-color: #16894a; color: #16894a; background: #eef8f1; }
+html.theme-gemera .log-setup-btn--wide.is-logged { border-color: #6fd39b; color: #6fd39b; background: rgba(111, 211, 155, .1); }

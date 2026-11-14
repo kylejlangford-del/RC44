@@ -3,7 +3,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import {
-  initializeFirestore, doc, onSnapshot, setDoc, getDoc, serverTimestamp
+  initializeFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, deleteField, FieldPath, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   getAuth, signInAnonymously, onAuthStateChanged
@@ -385,10 +385,36 @@ import {
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   }
   function nowTime() { var d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+  // Is what's fitted now (main, chock, B1–B6) the same as the last set up logged for this boat?
+  function sameAsLogged(boat, e) {
+    if (!e || e.sail !== currentSail[boat]) return false;
+    var cn = chockNow(boat);
+    if ((cn ? cn.value : "") !== (e.chock || "")) return false;
+    var now = currentSetupSnapshot(boat);
+    var was = e.battens || [];
+    return now.every(function (b, i) { var w = was[i] || {}; return (w.name || "") === (b.name || "") && (w.ei == null ? null : w.ei) === (b.ei == null ? null : b.ei); });
+  }
+  var toastTimer = null;
+  function showToast(msg) {
+    var t = document.getElementById("toast");
+    if (!t) return;
+    t.textContent = msg;
+    t.classList.add("is-on");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove("is-on"); }, 2600);
+  }
   function chockMetaText(boat) {
     var last = lastSetupLog(boat);
     if (!last) return "No set up logged";
     return "Logged " + escapeHtml(last.time) + (last.date !== todayStr() ? " " + escapeHtml(last.date.slice(5)) : "");
+  }
+  function lastSetupLogId(boat) {
+    var best = null, bestId = null;
+    Object.keys(setupLog || {}).forEach(function (id) {
+      var e = setupLog[id];
+      if (e && e.boat === boat && (!best || e.ms > best.ms)) { best = e; bestId = id; }
+    });
+    return bestId;
   }
   function lastSetupLog(boat) {
     var best = null;
@@ -424,27 +450,34 @@ import {
     });
   });
   var logBoat = null;
-  function openLogSetup(boat) {
+  var logEditId = null;
+  function openLogSetup(boat, editId) {
     logBoat = boat;
+    logEditId = editId && setupLog[editId] ? editId : null;
+    var ed = logEditId ? setupLog[logEditId] : null;
     var last = lastSetupLog(boat);
-    document.getElementById("logSetupTitle").textContent = "Log set up · " + (data[boat].boatLabel || boat) + " " + currentSail[boat];
-    document.getElementById("lsDate").value = todayStr();
-    document.getElementById("lsTime").value = nowTime();
-    document.getElementById("lsJib").value = last && last.jib ? last.jib : (activeJib || "");
-    document.getElementById("lsNote").value = "";
-    segVals.lsSea = last && last.date === todayStr() && last.seaState ? last.seaState : "";
-    segVals.lsFeel = "";
+    document.getElementById("logSetupTitle").textContent = (ed ? "Edit logged set up · " : "Log set up · ") + (data[boat].boatLabel || boat) + " " + (ed ? ed.sail : currentSail[boat]);
+    document.getElementById("lsDate").value = ed ? ed.date : todayStr();
+    document.getElementById("lsTime").value = ed ? ed.time : nowTime();
+    document.getElementById("lsJib").value = ed ? (ed.jib || "") : (last && last.jib ? last.jib : (activeJib || ""));
+    document.getElementById("lsNote").value = ed ? (ed.note || "") : "";
+    segVals.lsSea = ed ? (ed.seaState || "") : (last && last.date === todayStr() && last.seaState ? last.seaState : "");
+    segVals.lsFeel = ed ? (ed.feel || "") : "";
     renderSeg("lsSea"); renderSeg("lsFeel");
+    document.getElementById("lsSave").textContent = ed ? "Save changes" : "Log this set up";
+    document.getElementById("lsEditActions").classList.toggle("is-hidden", !ed);
     var cn = chockNow(boat);
+    var pvChock = ed ? (ed.chock || "") : (cn ? cn.value : "");
+    var pvBattens = ed ? (ed.battens || []) : currentSetupSnapshot(boat);
     document.getElementById("lsPreview").innerHTML =
-      '<div class="log-setup-preview__row"><span>Main</span><strong>' + escapeHtml(currentSail[boat]) + '</strong></div>' +
-      '<div class="log-setup-preview__row"><span>Chock</span><strong>' + (cn ? escapeHtml(cn.value) : "—") + '</strong></div>' +
-      currentSetupSnapshot(boat).map(function (b) {
+      '<div class="log-setup-preview__row"><span>Main</span><strong>' + escapeHtml(ed ? ed.sail : currentSail[boat]) + '</strong></div>' +
+      '<div class="log-setup-preview__row"><span>Chock</span><strong>' + (pvChock ? escapeHtml(pvChock) : "—") + '</strong></div>' +
+      pvBattens.map(function (b) {
         return '<div class="log-setup-preview__row"><span>B' + b.pos + '</span><strong>' + (b.name ? escapeHtml(b.name) : "—") + '</strong><em>' + (b.ei != null ? "EI " + b.ei : "") + '</em></div>';
       }).join("");
     logSheet.classList.remove("is-hidden");
   }
-  function closeLogSetup() { logSheet.classList.add("is-hidden"); logBoat = null; }
+  function closeLogSetup() { logSheet.classList.add("is-hidden"); logBoat = null; logEditId = null; }
   logSheet.querySelectorAll("[data-logsheet-close]").forEach(function (el) { el.addEventListener("click", closeLogSetup); });
   document.getElementById("lsSave").addEventListener("click", function () {
     var boat = logBoat;
@@ -454,21 +487,43 @@ import {
     var p = date.split("-"), t = time.split(":");
     var ms = new Date(+p[0], +p[1] - 1, +p[2], +t[0], +t[1]).getTime();
     var cn = chockNow(boat);
-    var entry = {
+    var ed = logEditId ? setupLog[logEditId] : null;
+    var entry = ed ? Object.assign({}, ed, {
+      date: date, time: time, ms: ms,
+      jib: document.getElementById("lsJib").value, note: document.getElementById("lsNote").value.trim(),
+      seaState: segVals.lsSea, feel: segVals.lsFeel, editedBy: currentName(), editedAt: Date.now()
+    }) : {
       boat: boat, sail: currentSail[boat], date: date, time: time, ms: ms,
       chock: cn ? cn.value : "", jib: document.getElementById("lsJib").value,
       battens: currentSetupSnapshot(boat), note: document.getElementById("lsNote").value.trim(),
       seaState: segVals.lsSea, feel: segVals.lsFeel,
       by: currentName(), loggedAt: Date.now()
     };
-    var id = "s" + Date.now().toString(36);
+    var id = logEditId || ("s" + Date.now().toString(36));
     setupLog[id] = entry;
     closeLogSetup();
     render();
+    showToast((ed ? "✓ Changes saved · " : "✓ Set up logged · ") + time + " · " + (data[boat].boatLabel || boat) + " " + entry.sail);
     if (!liveMode) return;
     var patch = { entries: {} }; patch.entries[id] = entry;
     setDoc(doc(db, "rc44-crossover", "setup-log"), patch, { merge: true })
-      .catch(function (e) { alert("Couldn't log the set up — check your connection. (" + e.message + ")"); });
+      .catch(function (e) { alert("Couldn't save the set up — check your connection. It is NOT logged. (" + e.message + ")"); });
+  });
+  document.getElementById("lsAgain").addEventListener("click", function () {
+    var boat = logBoat;
+    closeLogSetup();
+    if (boat) openLogSetup(boat);
+  });
+  document.getElementById("lsDelete").addEventListener("click", function () {
+    var id = logEditId, e = id ? setupLog[id] : null;
+    if (!e || !confirm("Delete the " + e.time + " set up? This can't be undone.")) return;
+    delete setupLog[id];
+    closeLogSetup();
+    render();
+    showToast("Set up deleted");
+    if (!liveMode) return;
+    updateDoc(doc(db, "rc44-crossover", "setup-log"), new FieldPath("entries", id), deleteField())
+      .catch(function (err) { alert("Couldn't delete. (" + err.message + ")"); });
   });
 
   function saveEventMain(boat, sail) {
@@ -830,8 +885,17 @@ import {
       logBtn.type = "button";
       logBtn.className = "log-setup-btn log-setup-btn--wide";
       var lastL = lastSetupLog(boat);
-      logBtn.innerHTML = '＋ Log this set up' + (lastL ? '<span>last ' + escapeHtml(lastL.time) + (lastL.date !== todayStr() ? " " + escapeHtml(lastL.date.slice(5)) : "") + '</span>' : '');
-      logBtn.addEventListener("click", function () { openLogSetup(boat); });
+      var lastId = lastSetupLogId(boat);
+      var logged = sameAsLogged(boat, lastL);
+      var when = lastL ? escapeHtml(lastL.time) + (lastL.date !== todayStr() ? " " + escapeHtml(lastL.date.slice(5)) : "") : "";
+      if (logged) {
+        logBtn.classList.add("is-logged");
+        logBtn.innerHTML = '✓ Logged ' + when + '<span>tap to edit</span>';
+        logBtn.addEventListener("click", function () { openLogSetup(boat, lastId); });
+      } else {
+        logBtn.innerHTML = '＋ Log this set up' + (lastL ? '<span>last ' + when + ' · changed since</span>' : '');
+        logBtn.addEventListener("click", function () { openLogSetup(boat); });
+      }
       col.appendChild(logBtn);
 
 

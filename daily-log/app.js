@@ -328,7 +328,8 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gsta
                 '</div>' +
                 '<div class="log-period__battens">' + bat + '</div>' +
                 (e.note ? '<p class="log-note-text">' + esc(e.note) + '</p>' : '') +
-                '<div class="log-period__foot">' + (e.by ? "by " + esc(e.by) : "") +
+                '<div class="log-period__foot">' + (e.by ? "by " + esc(e.by) : "") + (e.editedBy ? " · edited by " + esc(e.editedBy) : "") +
+                ' <button type="button" class="log-link" data-edit-period="' + esc(e.id) + '">Edit</button>' +
                 ' <button type="button" class="log-link log-link--danger" data-del-period="' + esc(e.id) + '">Delete</button></div>' +
               '</div></div>';
           }).join("") + '</div>';
@@ -356,7 +357,53 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gsta
           .catch(function (err) { alert("Couldn't delete. (" + err.message + ")"); });
       });
     });
+    wrap.querySelectorAll("[data-edit-period]").forEach(function (btn) {
+      btn.addEventListener("click", function () { editPeriod(btn.getAttribute("data-edit-period"), btn.closest(".log-period")); });
+    });
     bindEntryButtons(wrap);
+  }
+
+  // Edit a logged set up in place: time, jib, chock, sea state, felt, note.
+  function editPeriod(id, el) {
+    var e = setupLog[id];
+    if (!e || !el) return;
+    var opt = function (list, cur) {
+      return list.map(function (v) { return '<option value="' + esc(v) + '"' + (v === (cur || "") ? " selected" : "") + '>' + (v || "—") + '</option>'; }).join("");
+    };
+    var body = el.querySelector(".log-period__body");
+    body.innerHTML =
+      '<div class="log-grid">' +
+        '<label class="log-field log-field--small"><span>From</span><input class="log-input" data-f="time" type="time" value="' + esc(e.time) + '" /></label>' +
+        '<label class="log-field log-field--small"><span>Jib</span><select class="log-input" data-f="jib">' + opt(["", "G1", "J2", "J3"], e.jib) + '</select></label>' +
+        '<label class="log-field log-field--small"><span>Chock</span><input class="log-input" data-f="chock" value="' + esc(e.chock || "") + '" maxlength="20" /></label>' +
+        '<label class="log-field log-field--small"><span>Sea state</span><select class="log-input" data-f="seaState">' + opt(["", "Flat", "Medium", "Big"], e.seaState) + '</select></label>' +
+        '<label class="log-field log-field--small"><span>Felt</span><select class="log-input" data-f="feel">' + opt(["", "Fast", "Average", "Slow"], e.feel) + '</select></label>' +
+      '</div>' +
+      '<label class="log-field"><span>Note</span><input class="log-input" data-f="note" value="' + esc(e.note || "") + '" maxlength="200" /></label>' +
+      '<div class="log-form__actions"><button type="button" class="log-btn" data-cancel>Cancel</button><button type="button" class="log-btn log-btn--primary" data-save>Save</button></div>';
+    body.querySelector("[data-cancel]").addEventListener("click", renderList);
+    body.querySelector("[data-save]").addEventListener("click", function () {
+      var v = {};
+      body.querySelectorAll("[data-f]").forEach(function (i) { v[i.getAttribute("data-f")] = i.value.trim(); });
+      var p = e.date.split("-"), t = (v.time || e.time).split(":");
+      var upd = {
+        time: v.time || e.time, ms: new Date(+p[0], +p[1] - 1, +p[2], +t[0], +t[1]).getTime(),
+        jib: v.jib, chock: v.chock, seaState: v.seaState, feel: v.feel, note: v.note,
+        editedBy: who(), editedAt: Date.now()
+      };
+      var patch = { entries: {} }; patch.entries[id] = upd;
+      var btn = body.querySelector("[data-save]"); btn.disabled = true; btn.textContent = "Saving…";
+      setDoc(doc(db, "rc44-crossover", "setup-log"), patch, { merge: true })
+        .then(function () { flash("✓ Changes saved"); })
+        .catch(function (err) { alert("Couldn't save — check your connection. (" + err.message + ")"); btn.disabled = false; btn.textContent = "Save"; });
+    });
+  }
+
+  function flash(msg) {
+    var t = document.getElementById("toast");
+    if (!t) { t = document.createElement("div"); t.id = "toast"; t.className = "toast"; document.body.appendChild(t); }
+    t.textContent = msg; t.classList.add("is-on");
+    clearTimeout(flash._t); flash._t = setTimeout(function () { t.classList.remove("is-on"); }, 2400);
   }
 
   function entryHtml(e) {

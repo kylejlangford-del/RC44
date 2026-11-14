@@ -2901,3 +2901,26 @@ textarea.log-input { resize: vertical; }
   .log-setup-btn--wide { margin-top: 6px; min-height: 40px; }
   .page-battens .boat-col__head { margin-bottom: 2px; }
 }
+
+/* Logged state + toast */
+.log-setup-btn--wide.is-logged { border-color: #6fd39b; color: #6fd39b; background: rgba(111, 211, 155, .1); }
+.log-setup-btn--wide.is-logged span { opacity: .8; }
+.log-setup-edit-actions { display: flex; justify-content: space-between; margin-top: 12px; }
+.log-setup-edit-actions.is-hidden { display: none; }
+.toast {
+  position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 80;
+  transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+  max-width: calc(100% - 32px); padding: 12px 18px; border-radius: 14px;
+  background: #1f8a4c; color: #fff; font-weight: 600; font-size: .92rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35); transition: opacity .2s, transform .2s;
+}
+.toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+@media (min-width: 601px) { .toast { bottom: 32px; } }
+select.log-input, .log-setup-field select {
+  -webkit-appearance: none; appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 16px) 55%, calc(100% - 11px) 55%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 28px;
+}
