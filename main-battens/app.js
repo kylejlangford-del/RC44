@@ -876,7 +876,7 @@ import {
       var maxAbs = eiMaxAbsDelta() || Math.abs(d);
       var alpha = 0.55 + 0.35 * Math.min(1, Math.abs(d) / maxAbs);
       var badge = document.createElement("span");
-      badge.className = "batten-slot__delta";
+      badge.className = "batten-slot__delta " + (d > 0 ? "is-stiffer" : "is-softer");
       badge.textContent = "vs " + (otherBoat === "artemis" ? "Art " : "Gem ") + (d > 0 ? "+" : "") + d;
       badge.style.color = d > 0 ? "rgba(255,140,140," + alpha + ")" : "rgba(120,235,170," + alpha + ")";
       badge.title = (d > 0 ? "Stiffer" : "Softer") + " than " + (otherBoat === "artemis" ? "Artemis" : "Gemera") + " here by " + Math.abs(d) + " EI";

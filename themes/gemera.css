@@ -2,22 +2,20 @@
    orange #F68712, charcoal #231F20, hull grey. Switched on with ?theme=gemera. */
 
 html.theme-gemera {
-  --bg: #141213;
-  --panel: rgba(35, 31, 32, 0.92);
-  --line: rgba(190, 186, 187, 0.16);
+  --bg: #15181b;
+  --panel: rgba(33, 37, 41, 0.94);
+  --line: rgba(196, 204, 210, 0.16);
   --line-strong: rgba(246, 135, 18, 0.45);
   --text: #f2f1f1;
-  --muted: #a7a3a4;
-  --muted-2: #cfcbcc;
+  --muted: #9ea6ad;
+  --muted-2: #c9d0d5;
   --accent: #f68712;
   --accent-2: #ffa645;
   --gemera: #f68712;
 }
 
 html.theme-gemera body {
-  background:
-    radial-gradient(circle at 80% 12%, rgba(246, 135, 18, 0.10), transparent 22rem),
-    linear-gradient(180deg, #1c1a1b 0%, #141213 60%, #0f0e0e 100%);
+  background: linear-gradient(180deg, #1c2024 0%, #15181b 60%, #111316 100%);
 }
 html.theme-gemera body::before { opacity: .22; }
 html.theme-gemera .bg-glow { display: none; }
@@ -35,33 +33,33 @@ html.theme-gemera .log-setup-save,
 html.theme-gemera .seg button.is-on,
 html.theme-gemera .xover-edit-btn.is-editing { background: #f68712; color: #1a1112; border-color: #f68712; }
 
-html.theme-gemera .main-tabs { background: rgba(20, 18, 19, .97); }
-html.theme-gemera .main-tabs .view-toggle__btn.is-active { background: rgba(246, 135, 18, .16); color: #f68712; }
+html.theme-gemera .main-tabs { background: rgba(21, 24, 27, .97); }
+html.theme-gemera .main-tabs .view-toggle__btn.is-active { background: rgba(255, 255, 255, .07); color: #f68712; }
 
 html.theme-gemera .panel { background: var(--panel); }
-html.theme-gemera .batten-slot.is-button:active { background: rgba(246, 135, 18, .08); }
-html.theme-gemera .pick-item.is-on { border-color: #f68712; background: rgba(246, 135, 18, .1); }
+html.theme-gemera .batten-slot.is-button:active { background: rgba(255, 255, 255, .05); }
+html.theme-gemera .pick-item.is-on { border-color: #f68712; background: rgba(255, 255, 255, .05); }
 html.theme-gemera .xover-range { background: linear-gradient(180deg, rgba(246, 135, 18, .55), rgba(246, 135, 18, .32)); border-color: rgba(246, 135, 18, .85); }
 html.theme-gemera .xover-handle::after { background: #f68712; }
 
 /* Event / jib / log yellow → hull grey so orange stays the one accent */
-html.theme-gemera .event-mains-bar { background: rgba(255, 255, 255, .04); border-color: rgba(190, 186, 187, .3); }
+html.theme-gemera .event-mains-bar { background: rgba(255, 255, 255, .04); border-color: rgba(196, 204, 210, .28); }
 html.theme-gemera .event-mains-bar__boat strong,
 html.theme-gemera .log-period__time { color: #f68712; }
-html.theme-gemera .jib-picker__btn.is-active { background: #d9d6d6; border-color: #d9d6d6; color: #1a1112; }
-html.theme-gemera .log-setup-btn { border-color: #f68712; background: rgba(246, 135, 18, .12); color: #f68712; }
+html.theme-gemera .jib-picker__btn.is-active { background: #d5dade; border-color: #d5dade; color: #15181b; }
+html.theme-gemera .log-setup-btn { border-color: #f68712; background: rgba(255, 255, 255, .04); color: #f68712; }
 
 /* Homepage (hub style) */
 html.theme-gemera .viz-root {
-  --surface-1: #2a2627;
-  --page-plane: #1a1819;
+  --surface-1: #252a2e;
+  --page-plane: #181b1e;
   --text-primary: #f2f1f1;
-  --text-secondary: #b3afb0;
-  --text-muted: #7f7a7b;
-  --border: #3a3536;
+  --text-secondary: #aeb6bc;
+  --text-muted: #7d868d;
+  --border: #353b40;
   --accent: #f68712;
 }
-html.theme-gemera body { background: #1a1819; }
+html.theme-gemera body { background: #181b1e; }
 html.theme-gemera .hero .mark svg,
 html.theme-gemera .hero .mark span { display: none; }
 html.theme-gemera .hero .mark {
@@ -70,3 +68,137 @@ html.theme-gemera .hero .mark {
 }
 @media (max-width: 560px) { html.theme-gemera .hero .mark { width: 180px; height: 50px; } }
 html.theme-gemera .boat-tag { color: #f68712; background: rgba(246, 135, 18, .12); border-color: rgba(246, 135, 18, .35); }
+
+/* Keep the old navy out: tool-page tiles and panels that had their own blue */
+html.theme-gemera .stat-card, html.theme-gemera .metric-card, html.theme-gemera .summary-card { background: rgba(33, 37, 41, .94) !important; border-color: var(--line) !important; }
+
+/* =====================================================================
+   Gemera LIGHT ("hull") — pale hull grey, charcoal text, orange.
+   Switched on with ?theme=gemera-light. Easier to read in bright sun.
+   ===================================================================== */
+
+html.theme-gemera.theme-light {
+  color-scheme: light;
+  --bg: #dfe3e6;
+  --panel: #f4f6f7;
+  --line: rgba(35, 31, 32, 0.13);
+  --line-strong: rgba(214, 112, 8, 0.55);
+  --text: #231f20;
+  --muted: #5d656b;
+  --muted-2: #3d4448;
+  --accent: #dd7409;
+  --accent-2: #b85d00;
+  --artemis: #2b76cc;
+  --gemera: #ef7f0d;
+  --stiff: #c9302c;
+  --soft: #16894a;
+}
+html.theme-gemera.theme-light body { background: linear-gradient(180deg, #e8ebed 0%, #dfe3e6 100%); color: var(--text); }
+html.theme-gemera.theme-light body::before { opacity: .5; background-image: linear-gradient(rgba(0,0,0,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,.025) 1px, transparent 1px); }
+html.theme-gemera.theme-light .brand img { content: url("../assets/gemera-logo-dark.png"); }
+html.theme-gemera.theme-light .panel { background: var(--panel); box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 6px 18px rgba(0,0,0,.05); border-color: var(--line); }
+html.theme-gemera.theme-light .topbar { border-bottom-color: var(--line); }
+
+/* Text boxes and dropdowns */
+html.theme-gemera.theme-light input,
+html.theme-gemera.theme-light select,
+html.theme-gemera.theme-light textarea { background: #ffffff !important; color: var(--text) !important; border-color: rgba(35, 31, 32, .2) !important; }
+
+/* Buttons / toggles */
+html.theme-gemera.theme-light .ghost-button,
+html.theme-gemera.theme-light .view-toggle,
+html.theme-gemera.theme-light .sail-toggle,
+html.theme-gemera.theme-light .seg { background: #ffffff; border-color: rgba(35, 31, 32, .16); color: var(--text); }
+html.theme-gemera.theme-light .view-toggle__btn,
+html.theme-gemera.theme-light .sail-toggle__btn,
+html.theme-gemera.theme-light .jib-picker__btn,
+html.theme-gemera.theme-light .seg button { color: #4a5156; }
+html.theme-gemera.theme-light .view-toggle__btn.is-active,
+html.theme-gemera.theme-light .sail-toggle__btn.is-active,
+html.theme-gemera.theme-light .seg button.is-on { background: #ef7f0d; color: #ffffff; border-color: #ef7f0d; }
+html.theme-gemera.theme-light .jib-picker__btn.is-active { background: #231f20; border-color: #231f20; color: #ffffff; }
+html.theme-gemera.theme-light .main-tabs { background: rgba(244, 246, 247, .97); border-top-color: rgba(35, 31, 32, .12); }
+html.theme-gemera.theme-light .main-tabs .view-toggle__btn { color: #5d656b; background: transparent; }
+html.theme-gemera.theme-light .main-tabs .view-toggle__btn.is-active { background: rgba(239, 127, 13, .12); color: #c25f00; }
+html.theme-gemera.theme-light .log-setup-btn,
+html.theme-gemera.theme-light .xover-edit-btn { background: #ffffff; border-color: #ef7f0d; color: #c25f00; }
+html.theme-gemera.theme-light .xover-edit-btn.is-editing,
+html.theme-gemera.theme-light .log-setup-save,
+html.theme-gemera.theme-light .log-btn--primary { background: #ef7f0d; color: #fff; }
+
+/* Batten rows, sheet */
+html.theme-gemera.theme-light .batten-slot + .batten-slot { border-top-color: rgba(35, 31, 32, .1); }
+html.theme-gemera.theme-light .batten-slot__num,
+html.theme-gemera.theme-light .log-batten__pos,
+html.theme-gemera.theme-light .log-setup-preview__row span { color: #c25f00; }
+html.theme-gemera.theme-light .batten-slot__ei,
+html.theme-gemera.theme-light .pick-item__ei { color: #b85d00; }
+html.theme-gemera.theme-light .dialog__panel { background: #f4f6f7; color: var(--text); border-color: var(--line); }
+html.theme-gemera.theme-light .dialog__backdrop { background: rgba(35, 31, 32, .35); }
+html.theme-gemera.theme-light .pick-item { background: #ffffff; color: var(--text); border-color: rgba(35, 31, 32, .14); }
+html.theme-gemera.theme-light .pick-item.is-on { border-color: #ef7f0d; background: #fff4e8; }
+
+/* Amber / pale-green / pale-red text was made for dark — darken for light */
+html.theme-gemera.theme-light .event-mains-bar { background: #ffffff; border-color: rgba(35, 31, 32, .16); color: var(--text); }
+html.theme-gemera.theme-light .event-mains-bar__boat strong,
+html.theme-gemera.theme-light .event-mains__meta.is-unset,
+html.theme-gemera.theme-light .log-period__time,
+html.theme-gemera.theme-light .log-periods__head span,
+html.theme-gemera.theme-light .rig-note--tune header strong,
+html.theme-gemera.theme-light .rig-table--tune td:last-child { color: #c25f00; }
+html.theme-gemera.theme-light .suggest-status--keep { color: #16894a; background: rgba(22, 137, 74, .1); border-color: rgba(22, 137, 74, .35); }
+html.theme-gemera.theme-light .suggest-status--change { color: #b35a00; background: rgba(239, 127, 13, .1); border-color: rgba(239, 127, 13, .4); }
+html.theme-gemera.theme-light .suggested-set-chip { background: #ffffff; color: var(--text); border-color: rgba(35, 31, 32, .16); }
+html.theme-gemera.theme-light .suggested-set-chip.is-installed { box-shadow: inset 0 0 0 1px #16894a; }
+html.theme-gemera.theme-light .jib-tag { background: #231f20; color: #fff; }
+html.theme-gemera.theme-light .jib-tag--muted { background: rgba(35, 31, 32, .08); color: #4a5156; }
+html.theme-gemera.theme-light .suggest-jib-select { border-color: #231f20 !important; color: #231f20 !important; }
+html.theme-gemera.theme-light .seg--speed button[data-v="Fast"].is-on { background: #16894a; color: #fff; }
+html.theme-gemera.theme-light .seg--speed button[data-v="Average"].is-on { background: #e5a100; color: #231f20; }
+html.theme-gemera.theme-light .seg--speed button[data-v="Slow"].is-on { background: #c9302c; color: #fff; }
+html.theme-gemera.theme-light .log-feel--fast strong { color: #16894a; } html.theme-gemera.theme-light .log-feel--fast { border-color: #16894a; }
+html.theme-gemera.theme-light .log-feel--average strong { color: #a66f00; } html.theme-gemera.theme-light .log-feel--average { border-color: #e5a100; }
+html.theme-gemera.theme-light .log-feel--slow strong { color: #c9302c; } html.theme-gemera.theme-light .log-feel--slow { border-color: #c9302c; }
+html.theme-gemera.theme-light .log-boat { background: #ffffff; }
+html.theme-gemera.theme-light .log-period__b { background: rgba(35, 31, 32, .06); color: #3d4448; }
+html.theme-gemera.theme-light .log-main-badge { background: #ef7f0d; color: #fff; }
+
+/* Crossover */
+html.theme-gemera.theme-light .xover-track { background: #ffffff; border-color: rgba(35, 31, 32, .14); }
+html.theme-gemera.theme-light .xover-range { background: linear-gradient(180deg, #f6a04a, #ef7f0d); border-color: #c25f00; color: #fff; }
+html.theme-gemera.theme-light .xover-handle::after { background: #ffffff; }
+html.theme-gemera.theme-light .xover-track.is-inherited .xover-range { opacity: .35; }
+
+/* Rig Set Up tables */
+html.theme-gemera.theme-light .rig-table td:first-child { color: #c25f00; }
+html.theme-gemera.theme-light .rig-table .is-warn { color: #8a5200; background: rgba(229, 161, 0, .18); }
+html.theme-gemera.theme-light .rig-table .is-danger { color: #a3201c; background: rgba(201, 48, 44, .14); }
+html.theme-gemera.theme-light .rig-limit { background: #fff8ee; border-color: rgba(229, 161, 0, .5); }
+html.theme-gemera.theme-light .rig-limit--danger { background: #fdf0ef; border-color: rgba(201, 48, 44, .45); }
+html.theme-gemera.theme-light .rig-table--tws td:first-child,
+html.theme-gemera.theme-light .rig-table--tws th:first-child { background: #f4f6f7; }
+html.theme-gemera.theme-light .rig-table--tws th { color: #c25f00; }
+
+/* Targets tiles */
+html.theme-gemera.theme-light .stat-card, html.theme-gemera.theme-light .metric-card, html.theme-gemera.theme-light .summary-card { background: #ffffff !important; }
+
+/* Homepage */
+html.theme-gemera.theme-light .viz-root {
+  color-scheme: light;
+  --surface-1: #ffffff;
+  --page-plane: #e3e7ea;
+  --text-primary: #231f20;
+  --text-secondary: #4f575c;
+  --text-muted: #7a8288;
+  --border: rgba(35, 31, 32, .14);
+  --accent: #ef7f0d;
+}
+html.theme-gemera.theme-light body:has(.viz-root) { background: #e3e7ea; }
+html.theme-gemera.theme-light .hero .mark { background-image: url("../assets/gemera-logo-dark.png"); }
+html.theme-gemera.theme-light .card:hover { box-shadow: 0 6px 18px rgba(0,0,0,.08); }
+html.theme-gemera.theme-light .sidemenu a.on, html.theme-gemera.theme-light .sidemenu a:hover { background: #ffffff; }
+html.theme-gemera.theme-light .batten-slot__delta.is-stiffer { color: #c9302c !important; }
+html.theme-gemera.theme-light .batten-slot__delta.is-softer { color: #16894a !important; }
+html.theme-gemera .pos-toggle__btn.is-active { background: rgba(246, 135, 18, .12); border-color: var(--accent); color: var(--accent-2); }
+html.theme-gemera.theme-light .pos-toggle__btn { background: #ffffff; }
+html.theme-gemera.theme-light .sync-status__mark { background: transparent; border: none; color: #c25f00; }
