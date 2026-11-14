@@ -309,12 +309,13 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gsta
         return '<div class="log-periods__boat"><div class="log-boat__head"><span class="boat-dot boat-dot--' + boat + '"></span><strong>' + LABEL[boat] + '</strong></div>' +
           list.map(function (e, i) {
             var next = list[i + 1];
-            var until = next ? next.time : (isToday ? "now" : "end");
+            var until = next ? next.time : (e.endTime || (isToday ? "now" : "end"));
+            var endTag = (!next && e.endTime) ? '<em>' + (e.endSource === "njord" ? "Njord end" : "end") + '</em>' : '';
             var bat = (e.battens || []).map(function (b) {
               return '<span class="log-period__b" title="' + esc(b.name) + '">B' + b.pos + ' ' + (b.ei != null ? esc(b.ei) : "–") + '</span>';
             }).join("");
             return '<div class="log-period">' +
-              '<div class="log-period__time">' + esc(e.time) + '<span>→ ' + esc(until) + '</span></div>' +
+              '<div class="log-period__time">' + esc(e.time) + '<span>→ ' + esc(until) + '</span>' + endTag + '</div>' +
               '<div class="log-period__body">' +
                 '<div class="log-kvs">' +
                   '<span class="log-main-badge">' + esc(e.sail) + '</span>' +
@@ -370,10 +371,14 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gsta
     var opt = function (list, cur) {
       return list.map(function (v) { return '<option value="' + esc(v) + '"' + (v === (cur || "") ? " selected" : "") + '>' + (v || "—") + '</option>'; }).join("");
     };
+    var isLast = !Object.keys(setupLog).some(function (k) {
+      var o = setupLog[k]; return o && k !== id && o.boat === e.boat && o.date === e.date && o.ms > e.ms;
+    });
     var body = el.querySelector(".log-period__body");
     body.innerHTML =
       '<div class="log-grid">' +
         '<label class="log-field log-field--small"><span>From</span><input class="log-input" data-f="time" type="time" value="' + esc(e.time) + '" /></label>' +
+        (isLast ? '<label class="log-field log-field--small"><span>Until (day end)</span><input class="log-input" data-f="endTime" type="time" value="' + esc(e.endTime || "") + '" /></label>' : '') +
         '<label class="log-field log-field--small"><span>Jib</span><select class="log-input" data-f="jib">' + opt(["", "G1", "J2", "J3"], e.jib) + '</select></label>' +
         '<label class="log-field log-field--small"><span>Chock</span><input class="log-input" data-f="chock" value="' + esc(e.chock || "") + '" maxlength="20" /></label>' +
         '<label class="log-field log-field--small"><span>Sea state</span><select class="log-input" data-f="seaState">' + opt(["", "Flat", "Medium", "Big"], e.seaState) + '</select></label>' +
@@ -391,6 +396,10 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gsta
         jib: v.jib, chock: v.chock, seaState: v.seaState, feel: v.feel, note: v.note,
         editedBy: who(), editedAt: Date.now()
       };
+      if (isLast) {
+        upd.endTime = v.endTime || "";
+        if (v.endTime !== (e.endTime || "")) upd.endSource = v.endTime ? "manual" : "";
+      }
       var patch = { entries: {} }; patch.entries[id] = upd;
       var btn = body.querySelector("[data-save]"); btn.disabled = true; btn.textContent = "Saving…";
       setDoc(doc(db, "rc44-crossover", "setup-log"), patch, { merge: true })

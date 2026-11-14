@@ -2870,6 +2870,7 @@ textarea.log-input { resize: vertical; }
 .log-period:last-child { border-bottom: none; }
 .log-period__time { font-weight: 700; font-variant-numeric: tabular-nums; color: #ffd38a; }
 .log-period__time span { display: block; font-weight: 500; font-size: .74rem; color: var(--muted); }
+.log-period__time em { display: block; font-style: normal; font-weight: 600; font-size: .62rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); opacity: .8; }
 .log-period__battens { display: flex; flex-wrap: wrap; gap: 4px; }
 .log-period__b { font-size: .72rem; padding: 1px 7px; border-radius: 999px; background: rgba(71, 231, 219, .08); color: var(--muted-2); font-variant-numeric: tabular-nums; }
 .log-period__foot { margin-top: 4px; font-size: .7rem; color: var(--muted); }
