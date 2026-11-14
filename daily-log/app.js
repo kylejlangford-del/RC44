@@ -22,6 +22,8 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gsta
   var xover = { artemis: null, gemera: null };     // rc44-crossover/<boat> data
   var eventMains = {};
   var entries = {};
+  var setupLog = {};   // rc44-crossover/setup-log entries (timestamped set ups)
+  var setupNow = {};   // rc44-crossover/setup-now (chock fitted now)
   var editingId = null;
 
   var $ = function (id) { return document.getElementById(id); };
@@ -73,6 +75,11 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gsta
       onSnapshot(doc(db, "rc44-crossover", boat), function (s) { xover[boat] = s.exists() ? s.data() : null; });
     });
     onSnapshot(doc(db, "rc44-crossover", "event-mains"), function (s) { eventMains = s.exists() ? s.data() : {}; });
+    onSnapshot(doc(db, "rc44-crossover", "setup-log"), function (s) {
+      setupLog = (s.exists() && s.data().entries) || {};
+      renderList();
+    });
+    onSnapshot(doc(db, "rc44-crossover", "setup-now"), function (s) { setupNow = s.exists() ? s.data() : {}; });
     onSnapshot(doc(db, "rc44-crossover", "daily-log"), function (s) {
       entries = (s.exists() && s.data().entries) || {};
       var n = Object.keys(entries).length;
@@ -193,7 +200,8 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gsta
       fillDatalists(boat, mainSel.value);
       // New entry: battens copied from Main Battens now; chock/rake/tune/jib start from the last entry.
       renderBattenPreview(card, entry && src.battens ? src.battens : installedBattens(boat, mainSel.value));
-      card.querySelector(".log-chock").value = entry ? (src.chock || "") : (prev.chock || "");
+      var nowChock = setupNow[boat] && setupNow[boat][mainSel.value] && setupNow[boat][mainSel.value].chock;
+      card.querySelector(".log-chock").value = entry ? (src.chock || "") : ((nowChock && nowChock.value) || prev.chock || "");
       card.querySelector(".log-rake").value = entry ? (src.rake || "") : (prev.rake || "");
       card.querySelector(".log-tune").value = entry ? (src.tune || "") : (prev.tune || "");
       card.querySelector(".log-jib").value = entry ? (src.jib || "") : (prev.jib || "");
@@ -284,10 +292,75 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gsta
       '</div>';
   }
 
+  // Set up periods for one date: each logged set up runs until the next one for that boat.
+  function periodsHtml(date) {
+    var byBoat = {};
+    Object.keys(setupLog).forEach(function (id) {
+      var e = setupLog[id];
+      if (!e || e.date !== date) return;
+      (byBoat[e.boat] = byBoat[e.boat] || []).push(Object.assign({ id: id }, e));
+    });
+    var boats = BOATS.filter(function (b) { return byBoat[b]; });
+    if (!boats.length) return "";
+    var isToday = date === todayStr();
+    return '<section class="panel log-periods"><div class="log-periods__head"><strong>' + esc(niceDate(date)) + '</strong><span>Set ups logged</span></div>' +
+      boats.map(function (boat) {
+        var list = byBoat[boat].sort(function (a, b) { return a.ms - b.ms; });
+        return '<div class="log-periods__boat"><div class="log-boat__head"><span class="boat-dot boat-dot--' + boat + '"></span><strong>' + LABEL[boat] + '</strong></div>' +
+          list.map(function (e, i) {
+            var next = list[i + 1];
+            var until = next ? next.time : (isToday ? "now" : "end");
+            var bat = (e.battens || []).map(function (b) {
+              return '<span class="log-period__b" title="' + esc(b.name) + '">B' + b.pos + ' ' + (b.ei != null ? esc(b.ei) : "–") + '</span>';
+            }).join("");
+            return '<div class="log-period">' +
+              '<div class="log-period__time">' + esc(e.time) + '<span>→ ' + esc(until) + '</span></div>' +
+              '<div class="log-period__body">' +
+                '<div class="log-kvs">' +
+                  '<span class="log-main-badge">' + esc(e.sail) + '</span>' +
+                  (e.jib ? '<span class="log-kv"><span>Jib</span><strong>' + esc(e.jib) + '</strong></span>' : '') +
+                  (e.chock ? '<span class="log-kv"><span>Chock</span><strong>' + esc(e.chock) + '</strong></span>' : '') +
+                  (e.seaState ? '<span class="log-kv"><span>Sea</span><strong>' + esc(e.seaState) + '</strong></span>' : '') +
+                  (e.feel ? '<span class="log-kv log-feel log-feel--' + esc(e.feel.toLowerCase()) + '"><strong>' + esc(e.feel) + '</strong></span>' : '') +
+                  (e.njord && e.njord.twsAvg != null ? '<span class="log-kv log-kv--njord"><span>TWS</span><strong>' +
+                    esc(Math.round(e.njord.twsMin) + '–' + Math.round(e.njord.twsMax) + ' (avg ' + (Math.round(e.njord.twsAvg * 10) / 10) + ')') +
+                    (e.njord.twd != null ? ' · ' + Math.round(e.njord.twd) + '°' : '') + '</strong></span>' : '') +
+                '</div>' +
+                '<div class="log-period__battens">' + bat + '</div>' +
+                (e.note ? '<p class="log-note-text">' + esc(e.note) + '</p>' : '') +
+                '<div class="log-period__foot">' + (e.by ? "by " + esc(e.by) : "") +
+                ' <button type="button" class="log-link log-link--danger" data-del-period="' + esc(e.id) + '">Delete</button></div>' +
+              '</div></div>';
+          }).join("") + '</div>';
+      }).join("") + '</section>';
+  }
+
   function renderList() {
     var wrap = $("logList");
     var list = sortedEntries();
-    wrap.innerHTML = list.map(function (e) {
+    var dates = {};
+    list.forEach(function (e) { dates[e.date] = true; });
+    Object.keys(setupLog).forEach(function (id) { if (setupLog[id] && setupLog[id].date) dates[setupLog[id].date] = true; });
+    var html = Object.keys(dates).sort().reverse().map(function (date) {
+      return periodsHtml(date) + list.filter(function (e) { return e.date === date; }).map(entryHtml).join("");
+    }).join("");
+    wrap.innerHTML = html;
+    var n = list.length + Object.keys(setupLog).length;
+    if (n && statusEl.textContent.indexOf("No entries") === 0) statusEl.textContent = "Live";
+    wrap.querySelectorAll("[data-del-period]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-del-period");
+        var e = setupLog[id];
+        if (!confirm("Delete the " + (e ? e.time + " " + LABEL[e.boat] + " " + e.sail : "") + " set up? This can't be undone.")) return;
+        updateDoc(doc(db, "rc44-crossover", "setup-log"), new FieldPath("entries", id), deleteField())
+          .catch(function (err) { alert("Couldn't delete. (" + err.message + ")"); });
+      });
+    });
+    bindEntryButtons(wrap);
+  }
+
+  function entryHtml(e) {
+    return (function () {
       var tws = (e.twsMin != null || e.twsMax != null)
         ? (e.twsMin != null ? e.twsMin : "?") + "–" + (e.twsMax != null ? e.twsMax : "?") + " kts" : "";
       var meta = [e.session, tws].filter(Boolean).map(esc).join(" · ");
@@ -313,7 +386,10 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gsta
         '<footer class="log-entry__foot">Logged by ' + esc(e.createdBy || "someone") +
         (e.updatedBy && e.updatedBy !== e.createdBy ? " · edited by " + esc(e.updatedBy) : "") + '</footer>' +
         '</article>';
-    }).join("");
+    })();
+  }
+
+  function bindEntryButtons(wrap) {
 
     wrap.querySelectorAll("[data-edit]").forEach(function (btn) {
       btn.addEventListener("click", function () {

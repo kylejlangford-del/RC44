@@ -51,6 +51,14 @@ import {
   // this device has picked another main this visit.
   var eventMains = { event: "", artemis: null, gemera: null }; // boat: {sail, by, at:Date}
   var sailPickedThisVisit = {};
+
+  // Set up fitted now (chock), per boat and main. Shared live: rc44-crossover/setup-now,
+  // { gemera: { M2: { chock: { value, by, at } } } }.
+  var setupNow = { artemis: {}, gemera: {} };
+  function chockNow(boat) {
+    var s = setupNow[boat] && setupNow[boat][currentSail[boat]];
+    return s && s.chock && s.chock.value ? s.chock : null;
+  }
   var eventMainsLoaded = false;
 
   // The active position→slot map for a boat, under its currently selected mainsail.
@@ -202,6 +210,8 @@ import {
           document.getElementById("configWarning").classList.add("is-hidden");
           BOATS.forEach(function (boat) { subscribeBoat(boat); subscribeCrossover(boat); });
           subscribeEventMains();
+          subscribeSetupNow();
+          subscribeSetupLog();
         }
       });
       signInAnonymously(auth).catch(function (e) {
@@ -335,6 +345,131 @@ import {
       console.error("Event mains sync error", err);
     });
   }
+
+  function subscribeSetupNow() {
+    onSnapshot(doc(db, "rc44-crossover", "setup-now"), function (snap) {
+      var d = snap.exists() ? snap.data() : {};
+      BOATS.forEach(function (boat) {
+        var b = d[boat] || {};
+        Object.keys(b).forEach(function (sail) {
+          var c = b[sail] && b[sail].chock;
+          if (c && c.at && c.at.toDate) c.at = c.at.toDate();
+        });
+        setupNow[boat] = b;
+      });
+      render();
+      renderSuggestedSet();
+    }, function (err) { console.error("Set up sync error", err); });
+  }
+
+  function saveChock(boat, value) {
+    var sail = currentSail[boat];
+    if (!setupNow[boat]) setupNow[boat] = {};
+    if (!setupNow[boat][sail]) setupNow[boat][sail] = {};
+    setupNow[boat][sail].chock = value ? { value: value, by: currentName(), at: new Date() } : null;
+    render();
+    renderSuggestedSet();
+    if (!liveMode) return;
+    var patch = {}; patch[boat] = {}; patch[boat][sail] = {
+      chock: value ? { value: value, by: currentName(), at: serverTimestamp() } : null
+    };
+    setDoc(doc(db, "rc44-crossover", "setup-now"), patch, { merge: true })
+      .catch(function (e) { alert("Couldn't save the chock — check your connection. (" + e.message + ")"); });
+  }
+
+  // ---------- Set up log (timestamped set ups through the day) ----------
+  // rc44-crossover/setup-log: { entries: { id: { boat, sail, date, time, ms, chock, jib, battens, note, by } } }
+  var setupLog = {};
+  function todayStr() {
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function nowTime() { var d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+  function chockMetaText(boat) {
+    var last = lastSetupLog(boat);
+    if (!last) return "No set up logged";
+    return "Logged " + escapeHtml(last.time) + (last.date !== todayStr() ? " " + escapeHtml(last.date.slice(5)) : "");
+  }
+  function lastSetupLog(boat) {
+    var best = null;
+    Object.keys(setupLog || {}).forEach(function (id) {
+      var e = setupLog[id];
+      if (e && e.boat === boat && (!best || e.ms > best.ms)) best = e;
+    });
+    return best;
+  }
+  function subscribeSetupLog() {
+    onSnapshot(doc(db, "rc44-crossover", "setup-log"), function (snap) {
+      setupLog = (snap.exists() && snap.data().entries) || {};
+      render();
+    }, function (err) { console.error("Set up log sync error", err); });
+  }
+  function currentSetupSnapshot(boat) {
+    return POSITIONS.map(function (pos) {
+      var slot = slotsFor(boat)[pos];
+      var b = slot.installed ? findBatten(boat, pos, slot.installed) : null;
+      return { pos: pos, name: b ? b.name : "", ei: b && typeof b.ei === "number" ? b.ei : null };
+    });
+  }
+  var logSheet = document.getElementById("logSetupSheet");
+  // Segmented buttons (sea state, set up felt): tap to pick, tap again to clear.
+  var segVals = { lsSea: "", lsFeel: "" };
+  function renderSeg(key) {
+    document.querySelectorAll('[data-seg="' + key + '"] button').forEach(function (b) { b.classList.toggle("is-on", b.dataset.v === segVals[key]); });
+  }
+  document.querySelectorAll("[data-seg]").forEach(function (wrap) {
+    var key = wrap.getAttribute("data-seg");
+    wrap.querySelectorAll("button").forEach(function (b) {
+      b.addEventListener("click", function () { segVals[key] = segVals[key] === b.dataset.v ? "" : b.dataset.v; renderSeg(key); });
+    });
+  });
+  var logBoat = null;
+  function openLogSetup(boat) {
+    logBoat = boat;
+    var last = lastSetupLog(boat);
+    document.getElementById("logSetupTitle").textContent = "Log set up · " + (data[boat].boatLabel || boat) + " " + currentSail[boat];
+    document.getElementById("lsDate").value = todayStr();
+    document.getElementById("lsTime").value = nowTime();
+    document.getElementById("lsJib").value = last && last.jib ? last.jib : (activeJib || "");
+    document.getElementById("lsNote").value = "";
+    segVals.lsSea = last && last.date === todayStr() && last.seaState ? last.seaState : "";
+    segVals.lsFeel = "";
+    renderSeg("lsSea"); renderSeg("lsFeel");
+    var cn = chockNow(boat);
+    document.getElementById("lsPreview").innerHTML =
+      '<div class="log-setup-preview__row"><span>Main</span><strong>' + escapeHtml(currentSail[boat]) + '</strong></div>' +
+      '<div class="log-setup-preview__row"><span>Chock</span><strong>' + (cn ? escapeHtml(cn.value) : "—") + '</strong></div>' +
+      currentSetupSnapshot(boat).map(function (b) {
+        return '<div class="log-setup-preview__row"><span>B' + b.pos + '</span><strong>' + (b.name ? escapeHtml(b.name) : "—") + '</strong><em>' + (b.ei != null ? "EI " + b.ei : "") + '</em></div>';
+      }).join("");
+    logSheet.classList.remove("is-hidden");
+  }
+  function closeLogSetup() { logSheet.classList.add("is-hidden"); logBoat = null; }
+  logSheet.querySelectorAll("[data-logsheet-close]").forEach(function (el) { el.addEventListener("click", closeLogSetup); });
+  document.getElementById("lsSave").addEventListener("click", function () {
+    var boat = logBoat;
+    if (!boat) return;
+    var date = document.getElementById("lsDate").value || todayStr();
+    var time = document.getElementById("lsTime").value || nowTime();
+    var p = date.split("-"), t = time.split(":");
+    var ms = new Date(+p[0], +p[1] - 1, +p[2], +t[0], +t[1]).getTime();
+    var cn = chockNow(boat);
+    var entry = {
+      boat: boat, sail: currentSail[boat], date: date, time: time, ms: ms,
+      chock: cn ? cn.value : "", jib: document.getElementById("lsJib").value,
+      battens: currentSetupSnapshot(boat), note: document.getElementById("lsNote").value.trim(),
+      seaState: segVals.lsSea, feel: segVals.lsFeel,
+      by: currentName(), loggedAt: Date.now()
+    };
+    var id = "s" + Date.now().toString(36);
+    setupLog[id] = entry;
+    closeLogSetup();
+    render();
+    if (!liveMode) return;
+    var patch = { entries: {} }; patch.entries[id] = entry;
+    setDoc(doc(db, "rc44-crossover", "setup-log"), patch, { merge: true })
+      .catch(function (e) { alert("Couldn't log the set up — check your connection. (" + e.message + ")"); });
+  });
 
   function saveEventMain(boat, sail) {
     eventMains[boat] = { sail: sail, locked: false, by: currentName(), at: new Date() };
@@ -676,6 +811,30 @@ import {
 
         renderEi(boat, pos);
       });
+
+      // Chock fitted now — tap to pick from this main's Crossover chocks.
+      var cn = chockNow(boat);
+      var crow = document.createElement("div");
+      crow.className = "batten-slot is-button chock-slot";
+      crow.setAttribute("role", "button");
+      crow.tabIndex = 0;
+      crow.innerHTML = '<div class="batten-slot__num">Chock</div>' +
+        '<div class="batten-slot__name' + (cn ? '' : ' is-empty') + '">' + (cn ? escapeHtml(cn.value) : 'Tap to set') + '</div>' +
+        '<div class="batten-slot__ei chock-slot__meta">' + (cn && cn.by ? escapeHtml(cn.by) : '') + '</div>';
+      crow.addEventListener("click", function () { openPickChock(boat); });
+      crow.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPickChock(boat); } });
+      col.appendChild(crow);
+
+      // Log what's loaded (main, battens, chock) with a time — builds the Daily Log's set-up periods.
+      var logBtn = document.createElement("button");
+      logBtn.type = "button";
+      logBtn.className = "log-setup-btn log-setup-btn--wide";
+      var lastL = lastSetupLog(boat);
+      logBtn.innerHTML = '＋ Log this set up' + (lastL ? '<span>last ' + escapeHtml(lastL.time) + (lastL.date !== todayStr() ? " " + escapeHtml(lastL.date.slice(5)) : "") + '</span>' : '');
+      logBtn.addEventListener("click", function () { openLogSetup(boat); });
+      col.appendChild(logBtn);
+
+
       renderSyncStatus(boat);
     });
   }
@@ -782,8 +941,39 @@ import {
     pickState = null;
   }
 
+  function openPickChock(boat) {
+    pickState = { boat: boat, kind: "chock" };
+    renderPick();
+    pickSheet.classList.remove("is-hidden");
+  }
+
+  function renderPickChock() {
+    var boat = pickState.boat, sail = currentSail[boat];
+    document.getElementById("pickTitle").textContent = (data[boat].boatLabel || boat) + " " + sail + " · Chock";
+    var shared = ensureXoverShared(boat, sail);
+    var cur = chockNow(boat);
+    var list = document.getElementById("pickList");
+    list.innerHTML = "";
+    [{ name: "" }].concat(sortByNum(shared.chocks.defs)).forEach(function (c) {
+      var r = c.name ? effRange(shared.chocks.ranges[c.id], null) : null;
+      var on = (cur ? cur.value : "") === c.name;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pick-item" + (on ? " is-on" : "");
+      btn.innerHTML = '<span class="pick-item__check">' + (on ? "●" : "○") + '</span>' +
+        '<span class="pick-item__name">' + (c.name ? escapeHtml(c.name) : "None") + '</span>' +
+        '<span class="pick-item__ei">' + (r ? escapeHtml(rangeText(r)) : "") + '</span>';
+      btn.addEventListener("click", function () { saveChock(boat, c.name); closePick(); });
+      list.appendChild(btn);
+    });
+    if (!shared.chocks.defs.length) list.innerHTML = '<p class="import-step__hint">No chocks in Crossover for this main yet — add them under Crossover → Chocks.</p>';
+    document.getElementById("pickManage").classList.add("is-hidden");
+  }
+
   function renderPick() {
     if (!pickState) return;
+    document.getElementById("pickManage").classList.remove("is-hidden");
+    if (pickState.kind === "chock") { renderPickChock(); return; }
     var boat = pickState.boat, pos = pickState.pos;
     var slot = slotsFor(boat)[pos];
     document.getElementById("pickTitle").textContent =
@@ -1042,7 +1232,22 @@ import {
 
       customKindsWithData.forEach(function (k) {
         var matches = findSharedSuggestions(boat, k, tws);
-        sharedGroupsWrap.appendChild(buildSuggestGroup(CUSTOM_KINDS[k].label, matches, null));
+        var grp = buildSuggestGroup(CUSTOM_KINDS[k].label, matches, null);
+        // Chock: ✓ if the chock fitted now is one of the suggestions, ⇄ if not.
+        var cn = k === "chocks" ? chockNow(boat) : null;
+        if (cn && matches.length) {
+          var keepC = matches.some(function (m) { return m.label === cn.value; });
+          var lab = grp.querySelector(".suggested-set-group__label");
+          var mk = document.createElement("span");
+          mk.className = "suggest-status suggest-status--" + (keepC ? "keep" : "change");
+          mk.innerHTML = keepC ? '✓<span class="suggest-status__word"> Keep</span>' : '⇄<span class="suggest-status__word"> now ' + escapeHtml(cn.value) + '</span>';
+          mk.title = keepC ? "Chock fitted now is suggested" : "Chock fitted now: " + cn.value;
+          (lab || grp).appendChild(mk);
+          grp.querySelectorAll(".suggested-set-chip").forEach(function (chip) {
+            if (chip.textContent.indexOf(cn.value) === 0) chip.classList.add("is-installed");
+          });
+        }
+        sharedGroupsWrap.appendChild(grp);
       });
 
       sharedRow.appendChild(sharedGroupsWrap);

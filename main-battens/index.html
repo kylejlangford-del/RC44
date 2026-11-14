@@ -11,7 +11,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="RC44" />
   <title>Main Battens · RC44</title>
-  <link rel="stylesheet" href="../styles.css?v=20261114a" />
+  <link rel="stylesheet" href="../styles.css?v=20261114e" />
 </head>
 <body class="page-battens">
   <div class="bg-glow bg-glow--one"></div>
@@ -246,6 +246,35 @@
     </div>
   </div>
 
+  <div id="logSetupSheet" class="dialog sheet is-hidden">
+    <div class="dialog__backdrop" data-logsheet-close></div>
+    <div class="dialog__panel sheet__panel">
+      <div class="dialog__head">
+        <h2 id="logSetupTitle">Log set up</h2>
+        <button class="text-link" type="button" data-logsheet-close>Close</button>
+      </div>
+      <p class="import-step__hint" style="margin:0 0 10px;">Saves what's fitted now with a time. It's used from this time until the next set up you log.</p>
+      <div class="log-setup-grid">
+        <label class="log-setup-field"><span>Date</span><input id="lsDate" type="date" /></label>
+        <label class="log-setup-field"><span>From</span><input id="lsTime" type="time" /></label>
+        <label class="log-setup-field"><span>Jib</span>
+          <select id="lsJib"><option value="">—</option><option>G1</option><option>J2</option><option>J3</option></select>
+        </label>
+      </div>
+      <div id="lsPreview" class="log-setup-preview"></div>
+      <div class="log-setup-choice">
+        <span>Sea state</span>
+        <div class="seg" data-seg="lsSea"><button type="button" data-v="Flat">Flat</button><button type="button" data-v="Medium">Medium</button><button type="button" data-v="Big">Big</button></div>
+      </div>
+      <div class="log-setup-choice">
+        <span>Set up felt</span>
+        <div class="seg seg--speed" data-seg="lsFeel"><button type="button" data-v="Fast">Fast</button><button type="button" data-v="Average">Average</button><button type="button" data-v="Slow">Slow</button></div>
+      </div>
+      <label class="log-setup-field log-setup-field--wide"><span>Note</span><input id="lsNote" type="text" maxlength="200" placeholder="Why the change, how it felt" /></label>
+      <button id="lsSave" class="log-setup-save" type="button">Log this set up</button>
+    </div>
+  </div>
+
   <div id="manageDialog" class="dialog is-hidden">
     <div class="dialog__backdrop"></div>
     <div class="dialog__panel">
@@ -282,6 +311,6 @@
 
   <script src="./data.js?v=20260922n"></script>
   <script src="./firebase-config.js"></script>
-  <script type="module" src="./app.js?v=20261114a"></script>
+  <script type="module" src="./app.js?v=20261114e"></script>
 </body>
 </html>
