@@ -2813,3 +2813,6 @@ textarea.log-input { resize: vertical; }
   .suggest-tws-range { gap: 6px; }
   .suggest-tws-range input { width: 64px; }
 }
+.rig-note--tune { border-color: rgba(255, 211, 138, .4); }
+.rig-note--tune header strong { color: #ffd38a; }
+.rig-note li strong { color: var(--text); }
