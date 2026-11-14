@@ -1,0 +1,72 @@
+/* Gemera Racing theme — colours from the Gemera graphics (Dec 2024):
+   orange #F68712, charcoal #231F20, hull grey. Switched on with ?theme=gemera. */
+
+html.theme-gemera {
+  --bg: #141213;
+  --panel: rgba(35, 31, 32, 0.92);
+  --line: rgba(190, 186, 187, 0.16);
+  --line-strong: rgba(246, 135, 18, 0.45);
+  --text: #f2f1f1;
+  --muted: #a7a3a4;
+  --muted-2: #cfcbcc;
+  --accent: #f68712;
+  --accent-2: #ffa645;
+  --gemera: #f68712;
+}
+
+html.theme-gemera body {
+  background:
+    radial-gradient(circle at 80% 12%, rgba(246, 135, 18, 0.10), transparent 22rem),
+    linear-gradient(180deg, #1c1a1b 0%, #141213 60%, #0f0e0e 100%);
+}
+html.theme-gemera body::before { opacity: .22; }
+html.theme-gemera .bg-glow { display: none; }
+
+/* Logo swap */
+html.theme-gemera .brand img { content: url("../assets/gemera-logo-light.png"); height: 26px; width: auto; }
+html.theme-gemera .brand { background: transparent; padding: 0; }
+
+/* Anything that sat on the teal accent now sits on orange with dark text */
+html.theme-gemera .view-toggle__btn.is-active,
+html.theme-gemera .sail-toggle__btn.is-active,
+html.theme-gemera .log-main-badge,
+html.theme-gemera .log-btn--primary,
+html.theme-gemera .log-setup-save,
+html.theme-gemera .seg button.is-on,
+html.theme-gemera .xover-edit-btn.is-editing { background: #f68712; color: #1a1112; border-color: #f68712; }
+
+html.theme-gemera .main-tabs { background: rgba(20, 18, 19, .97); }
+html.theme-gemera .main-tabs .view-toggle__btn.is-active { background: rgba(246, 135, 18, .16); color: #f68712; }
+
+html.theme-gemera .panel { background: var(--panel); }
+html.theme-gemera .batten-slot.is-button:active { background: rgba(246, 135, 18, .08); }
+html.theme-gemera .pick-item.is-on { border-color: #f68712; background: rgba(246, 135, 18, .1); }
+html.theme-gemera .xover-range { background: linear-gradient(180deg, rgba(246, 135, 18, .55), rgba(246, 135, 18, .32)); border-color: rgba(246, 135, 18, .85); }
+html.theme-gemera .xover-handle::after { background: #f68712; }
+
+/* Event / jib / log yellow → hull grey so orange stays the one accent */
+html.theme-gemera .event-mains-bar { background: rgba(255, 255, 255, .04); border-color: rgba(190, 186, 187, .3); }
+html.theme-gemera .event-mains-bar__boat strong,
+html.theme-gemera .log-period__time { color: #f68712; }
+html.theme-gemera .jib-picker__btn.is-active { background: #d9d6d6; border-color: #d9d6d6; color: #1a1112; }
+html.theme-gemera .log-setup-btn { border-color: #f68712; background: rgba(246, 135, 18, .12); color: #f68712; }
+
+/* Homepage (hub style) */
+html.theme-gemera .viz-root {
+  --surface-1: #2a2627;
+  --page-plane: #1a1819;
+  --text-primary: #f2f1f1;
+  --text-secondary: #b3afb0;
+  --text-muted: #7f7a7b;
+  --border: #3a3536;
+  --accent: #f68712;
+}
+html.theme-gemera body { background: #1a1819; }
+html.theme-gemera .hero .mark svg,
+html.theme-gemera .hero .mark span { display: none; }
+html.theme-gemera .hero .mark {
+  width: 230px; height: 63px;
+  background: url("../assets/gemera-logo-light.png") left center / contain no-repeat;
+}
+@media (max-width: 560px) { html.theme-gemera .hero .mark { width: 180px; height: 50px; } }
+html.theme-gemera .boat-tag { color: #f68712; background: rgba(246, 135, 18, .12); border-color: rgba(246, 135, 18, .35); }

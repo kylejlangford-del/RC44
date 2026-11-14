@@ -12,6 +12,18 @@
   <meta name="apple-mobile-web-app-title" content="RC44" />
   <title>Rig Set Up · RC44</title>
   <link rel="stylesheet" href="../styles.css?v=20261114b" />
+  <script>
+    // Team colour theme: ?theme=gemera (remembered on this device), ?theme=seagull to go back.
+    (function () {
+      try {
+        var q = new URLSearchParams(location.search).get("theme");
+        if (q) localStorage.setItem("rc44-theme", q);
+        var t = localStorage.getItem("rc44-theme");
+        if (t === "gemera") document.documentElement.classList.add("theme-gemera");
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="../themes/gemera.css?v=20261114b" />
 </head>
 <body>
   <div class="bg-glow bg-glow--one"></div>

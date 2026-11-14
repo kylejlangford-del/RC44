@@ -15,6 +15,18 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&family=Inter:wght@400;500;600&display=swap" />
   <link rel="stylesheet" href="./hub.css?v=20261113a" />
+  <script>
+    // Team colour theme: ?theme=gemera (remembered on this device), ?theme=seagull to go back.
+    (function () {
+      try {
+        var q = new URLSearchParams(location.search).get("theme");
+        if (q) localStorage.setItem("rc44-theme", q);
+        var t = localStorage.getItem("rc44-theme");
+        if (t === "gemera") document.documentElement.classList.add("theme-gemera");
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="./themes/gemera.css?v=20261114b" />
 </head>
 <body>
 <div class="viz-root">
