@@ -202,3 +202,10 @@ html.theme-gemera.theme-light .batten-slot__delta.is-softer { color: #16894a !im
 html.theme-gemera .pos-toggle__btn.is-active { background: rgba(246, 135, 18, .12); border-color: var(--accent); color: var(--accent-2); }
 html.theme-gemera.theme-light .pos-toggle__btn { background: #ffffff; }
 html.theme-gemera.theme-light .sync-status__mark { background: transparent; border: none; color: #c25f00; }
+
+/* Leftover navy spots in the dark theme */
+html.theme-gemera .rig-table--tws td:first-child,
+html.theme-gemera .rig-table--tws th:first-child { background: #1f2327; }
+html.theme-gemera .xover-range__clear { background: #23272b; }
+html.theme-gemera .cal-point, html.theme-gemera .draft-endpoint { stroke: #15181b; }
+html.theme-gemera.theme-light .xover-range__clear { background: #ffffff; }
