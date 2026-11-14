@@ -2832,3 +2832,5 @@ textarea.log-input { resize: vertical; }
 .xover-locked .add-chock-form,
 .xover-locked .xover-row__remove,
 .xover-locked .xover-range__clear { display: none !important; }
+.rig-table--tune td:first-child { white-space: nowrap; }
+.rig-table--tune td:last-child { color: #ffd38a; font-weight: 700; white-space: nowrap; }
