@@ -137,12 +137,11 @@
     html += '<h2 class="targets-h2" style="margin-top:36px;">Methodology</h2>';
     html += '<div class="note-box">';
     html += '<b>Building a phase:</b> each point is a true <b>10-second segment</b>, built by ' +
-      'downsampling the boat’s own B&amp;G H5000 CSV telemetry export logs to 1Hz and grouping ' +
-      'into 10-second tumbling windows (minimum 8 valid 1Hz samples). Point of sail is classified ' +
+      'pulling each boat’s logged data from Njord at 1Hz and grouping ' +
+      'into 10-second tumbling windows. Point of sail is classified ' +
       'per-second from true wind angle: <b>|TWA| &gt; 100°</b> is downwind, <b>|TWA| &lt; 75°</b> ' +
-      'is upwind, and the 75–100° reaching/transition band is excluded, since the local logs carry ' +
-      'no race-leg boundary metadata. Every segment must average between <b>70% and 130% of ' +
-      'target boat speed</b> (the H5000’s own Polar Performance % column, selectable as the chart ' +
+      'is upwind, and the 75–100° reaching/transition band is excluded; training and racing both count. Every segment must average between <b>70% and 130% of ' +
+      'target boat speed</b> (boat speed as % of polar, from Njord, selectable as the chart ' +
       'x-axis as VMG%) and hold <b>TWA within a ±6° band</b> across the window, so gybes, tacks ' +
       'and maneuvers are excluded by construction. Phases below <b>5kt true wind speed</b> are ' +
       'excluded — too few, noisy samples at that end.<br><br>';
@@ -160,9 +159,8 @@
         'so that column/chart reflects whichever phases have it' : '') + '. The <b>Boats</b> filter ' +
       'above recomputes the targets from scratch for the selected boat(s) — it doesn’t just hide ' +
       'points from the combined target line.<br><br>';
-    html += '<b>Coverage:</b> both boats, all four events this season — Lanzarote, Sardinia, ' +
-      'Marstrand and Cowes — processed entirely from local telemetry logs rather than Njord’s ' +
-      'CDN (which has been affected by a sustained outage on the raw metric data). <b>' +
+    html += '<b>Coverage:</b> both boats, all five events this season — Lanzarote, Sardinia, ' +
+      'Marstrand, Cowes and Cartagena (Nov) — rebuilt from Njord on 15 Nov. <b>' +
       stats.total + ' ' + mode + ' phases</b> shown for the current boat filter.<br><br>';
     html += '<i>The scatter charts above plot a representative sample of segments for display; the ' +
       'target table and phase counts reflect the complete filtered dataset.</i>';
